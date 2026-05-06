@@ -422,17 +422,53 @@ def normalizar_df(df):
 
     df = df.copy()
 
+    colunas_numericas = [
+        "Quant Vendida",
+        "Valor Unitário",
+        "Total",
+        "Custo",
+        "Lucro"
+    ]
+
+    def limpar_valor(x):
+
+        if pd.isna(x):
+            return None
+
+        if isinstance(x, str):
+            x = x.strip()
+
+            if x == "":
+                return None
+
+        if isinstance(x, pd.Timestamp):
+            return x.strftime("%Y-%m-%d %H:%M:%S")
+
+        return x
+
+    def converter_numero(x):
+
+        if pd.isna(x):
+            return None
+
+        if isinstance(x, str):
+            x = x.strip()
+
+            if x == "":
+                return None
+
+            x = x.replace(".", "").replace(",", ".")
+
+            return float(x)
+
+        return x
+
     for col in df.columns:
+        df[col] = df[col].apply(limpar_valor)
 
-        if pd.api.types.is_datetime64_any_dtype(df[col]):
-            df[col] = df[col].dt.strftime("%Y-%m-%d %H:%M:%S")
-
-        else:
-            df[col] = df[col].apply(
-                lambda x: x.isoformat()
-                if isinstance(x, pd.Timestamp)
-                else x
-            )
+    for col in colunas_numericas:
+        if col in df.columns:
+            df[col] = df[col].apply(converter_numero)
 
     return df
 
@@ -453,7 +489,13 @@ def inserir_novas_vendas(df):
     df = gerar_ids(df)
     df = normalizar_df(df)
 
-    payload = df.where(pd.notnull(df), None).to_dict(orient="records")
+    payload = df.to_dict(orient="records")
+
+    for registro in payload:
+        for chave, valor in registro.items():
+
+            if pd.isna(valor):
+                registro[chave] = None
 
     r = requests.post(
         endpoint,
