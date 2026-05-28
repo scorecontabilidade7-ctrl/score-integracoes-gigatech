@@ -161,6 +161,20 @@ def wait_until_visible(locator, timeout=5000):
         return False
 
 
+def first_visible(page, selectors, timeout=30000):
+    last_error = None
+
+    for selector in selectors:
+        try:
+            locator = page.locator(selector).first
+            locator.wait_for(state="visible", timeout=timeout)
+            return locator
+        except Exception as e:
+            last_error = e
+
+    raise RuntimeError(f"Nenhum seletor encontrado. Último erro: {last_error}")
+
+
 def ensure_menu(menu, submenu):
     try:
         if submenu.is_visible():
@@ -425,12 +439,38 @@ def relatorio_vendas(page, session, config, folder):
 
     safe_click(page.locator('xpath=//*[@id="menuform:um_rfrm_rel_venda_detalhada_novo"]/a'))
 
-    page.fill("#frmVenda\\:j_idt159_input", datetime.now().strftime("%d/%m/%Y"))
+    campo_data = first_visible(page, [
+        'xpath=//form[contains(@id,"frmVenda")]//input[contains(@id,"_input")]',
+        "#frmVenda\\:j_idt159_input"
+    ])
 
-    print("[RELATÓRIO] Baixando Relatório de Vendas")
+    campo_data.fill(datetime.now().strftime("%d/%m/%Y"))
+    campo_data.press("Tab")
 
-    with page.expect_download(timeout=30000) as d:
-        safe_click(page.locator("#frmVenda\\:j_idt171_button"))
+    page.wait_for_timeout(1500)
+
+    print("[RELATÓRIO] Baixando Relatório de Vendas - Exportar Xlsx")
+
+    # Botão principal do SplitButton: Exportar Xlsx.
+    # Não usar o botão da setinha, que normalmente termina com "_button".
+    botao_exportar_xlsx = first_visible(page, [
+        '#frmVenda\\:j_idt171',
+        'xpath=//form[contains(@id,"frmVenda")]//button[not(contains(@id,"_button")) and .//span[normalize-space()="Exportar Xlsx"]]',
+        'xpath=//form[contains(@id,"frmVenda")]//button[not(contains(@class,"ui-splitbutton-menubutton")) and .//span[contains(normalize-space(.),"Exportar Xlsx")]]',
+        'xpath=//form[contains(@id,"frmVenda")]//*[normalize-space()="Exportar Xlsx"]/ancestor::button[not(contains(@id,"_button"))][1]'
+    ])
+
+    botao_exportar_xlsx.wait_for(state="visible", timeout=30000)
+
+    try:
+        botao_exportar_xlsx.scroll_into_view_if_needed()
+    except Exception:
+        pass
+
+    page.wait_for_timeout(1000)
+
+    with page.expect_download(timeout=60000) as d:
+        botao_exportar_xlsx.click(timeout=30000, force=True)
 
     file = d.value
 
@@ -455,7 +495,7 @@ def relatorio_vendas(page, session, config, folder):
         config,
         folder,
         "Relatorio de Vendas",
-        file.suggested_filename or "Relatorio Venda.xls"
+        file.suggested_filename or "Relatorio Venda.xlsx"
     )
 
     upload_bytes(session, config, data, name, folder)
@@ -466,13 +506,18 @@ def relatorio_vendedor(page, context, session, config, folder):
 
     safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios9"]/a'))
 
-    page.fill(
-        'xpath=//*[@id="frmTitulo:j_idt133_input"]',
-        datetime.now().strftime("%d/%m/%Y")
-    )
+    campo_data = first_visible(page, [
+        'xpath=//form[contains(@id,"frmTitulo")]//input[contains(@id,"_input")]',
+        'xpath=//*[@id="frmTitulo:j_idt133_input"]'
+    ])
 
-    pdf_button = page.locator('xpath=//*[@id="frmTitulo:j_idt142"]')
-    pdf_button.wait_for(state="visible", timeout=15000)
+    campo_data.fill(datetime.now().strftime("%d/%m/%Y"))
+
+    pdf_button = first_visible(page, [
+        'xpath=//form[contains(@id,"frmTitulo")]//button[contains(.,"Imprimir")]',
+        'xpath=//form[contains(@id,"frmTitulo")]//button[.//span[contains(normalize-space(.),"Imprimir")]]',
+        'xpath=//*[@id="frmTitulo:j_idt142"]'
+    ], timeout=15000)
 
     pdf, original = capture_pdf_old_logic(
         page,
@@ -505,8 +550,12 @@ def relatorio_clientes(page, context, session, config, folder):
     cliente.wait_for(state="visible", timeout=15000)
     safe_click(cliente)
 
-    pdf_button = page.locator('xpath=//*[@id="frmRelatorio:j_idt130"]/span[2]')
-    pdf_button.wait_for(state="visible", timeout=15000)
+    pdf_button = first_visible(page, [
+        'xpath=//form[contains(@id,"frmRelatorio")]//button[contains(.,"Imprimir")]',
+        'xpath=//form[contains(@id,"frmRelatorio")]//button[.//span[contains(normalize-space(.),"Imprimir")]]',
+        'xpath=//*[@id="frmRelatorio:j_idt130"]',
+        'xpath=//*[@id="frmRelatorio:j_idt130"]/span[2]'
+    ], timeout=15000)
 
     pdf, original = capture_pdf_old_logic(
         page,
