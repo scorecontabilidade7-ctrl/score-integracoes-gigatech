@@ -10,11 +10,38 @@ def safe_float(val):
     except:
         return 0.0
 
+def read_robust_excel(file_path: str) -> pd.DataFrame:
+    """Tenta ler um arquivo Excel de várias maneiras para suportar extensões inconsistentes ou formatos HTML/CSV ocultos."""
+    try:
+        # 1. Tenta ler normal (padrão openpyxl ou xlrd baseado na extensão)
+        return pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[AVISO] Tentativa 1 de leitura falhou, tentando engine='xlrd'... Erro: {e}")
+        try:
+            # 2. Tenta forçar engine='xlrd' para arquivos .xls salvos com extensão .xlsx
+            return pd.read_excel(file_path, engine='xlrd')
+        except Exception as e2:
+            print(f"[AVISO] Tentativa 2 de leitura falhou, tentando read_html... Erro: {e2}")
+            try:
+                # 3. Tenta ler como tabela HTML (ERPs antigos costumam gerar HTML com extensão .xls/.xlsx)
+                dfs = pd.read_html(file_path)
+                if dfs:
+                    return dfs[0]
+                else:
+                    raise ValueError("Nenhuma tabela encontrada no HTML")
+            except Exception as e3:
+                print(f"[AVISO] Tentativa 3 de leitura falhou, tentando read_csv... Erro: {e3}")
+                try:
+                    # 4. Tenta ler como CSV (com delimitador automático)
+                    return pd.read_csv(file_path, sep=None, engine='python')
+                except Exception as e4:
+                    raise RuntimeError(f"Todos os parsers falharam (Excel, HTML, CSV). Erro original: {e}. Erro final: {e4}")
+
 def process_vendas_excel(file_path: str, cliente_id: str):
     """Lê Excel de Vendas e insere no banco gigatech_vendas."""
     print(f"[PROCESS] Processando Excel de Vendas: {file_path}")
     try:
-        df = pd.read_excel(file_path)
+        df = read_robust_excel(file_path)
     except Exception as e:
         print(f"[ERRO] Falha ao ler {file_path}: {e}")
         return
@@ -173,7 +200,7 @@ def process_estoque_excel(file_path: str, cliente_id: str):
     """Lê Excel de Custo de Estoque e insere no banco gigatech_estoque."""
     print(f"[PROCESS] Processando Excel de Estoque: {file_path}")
     try:
-        df = pd.read_excel(file_path)
+        df = read_robust_excel(file_path)
     except Exception as e:
         print(f"[ERRO] Falha ao ler {file_path}: {e}")
         return

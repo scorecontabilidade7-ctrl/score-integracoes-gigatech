@@ -36,11 +36,11 @@ def main():
     if cliente_id and cliente_id.strip().upper() == "TODOS":
         cliente_id = None
 
-    # Se não vier data, significa que rodou pelo Cron (Agendador diário). Pegamos D-1 (ontem).
-    ontem = (datetime.now() - timedelta(days=1)).strftime("%d/%m/%Y")
+    # Se não vier data, significa que rodou pelo Cron (Agendador horário). Pegamos D-0 (hoje).
+    hoje = datetime.now().strftime("%d/%m/%Y")
     
-    data_inicial = os.getenv("KESTRA_DATA_INICIAL") or ontem
-    data_final = os.getenv("KESTRA_DATA_FINAL") or ontem
+    data_inicial = os.getenv("KESTRA_DATA_INICIAL") or hoje
+    data_final = os.getenv("KESTRA_DATA_FINAL") or hoje
     
     print(f"[PARAMS] Cliente ID: {cliente_id or 'TODOS'}")
     print(f"[PARAMS] Período: {data_inicial} até {data_final}\n")
