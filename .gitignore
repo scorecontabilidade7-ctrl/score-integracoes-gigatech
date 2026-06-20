@@ -136,3 +136,16 @@ __pypackages__/
 marimo/_static/
 marimo/_lsp/
 __marimo__/
+
+# =========================
+# SISTEMA OPERACIONAL
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# NODE / NEXT.JS (WEB)
+# =========================
+node_modules/
+.next/
+out/

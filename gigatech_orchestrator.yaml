@@ -1,0 +1,52 @@
+id: gigatech_to_supabase
+namespace: gigatech.automacoes
+description: Orquestrador Multi-tenant da Giga Tech (V2)
+
+inputs:
+  - id: data_inicial
+    type: STRING
+    required: false
+    description: "Formato: dd/mm/yyyy. Deixe vazio para usar D-1 (ontem)."
+  - id: data_final
+    type: STRING
+    required: false
+    description: "Formato: dd/mm/yyyy. Deixe vazio para usar D-1 (ontem)."
+  - id: cliente_id
+    type: STRING
+    required: true
+    description: "ID do cliente. Use TODOS para rodar a base inteira."
+    defaults: "TODOS"
+
+triggers:
+  - id: daily_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 3 * * *" # Roda todo dia às 03:00 da manhã
+  - id: webhook_trigger
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: "GIGATECH_EXTRACT_KEY"
+
+tasks:
+  - id: working_dir
+    type: io.kestra.plugin.core.flow.WorkingDirectory
+    tasks:
+      - id: clone_repo
+        type: io.kestra.plugin.git.Clone
+        url: "https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git" # <-- SUBSTITUA AQUI
+        branch: main
+      
+      - id: execute_python
+        type: io.kestra.plugin.scripts.python.Script
+        containerImage: mcr.microsoft.com/playwright/python:v1.44.0-jammy
+        env:
+          SUPABASE_URL: "{{ kv('SUPABASE_URL') }}"
+          SUPABASE_KEY: "{{ kv('SUPABASE_KEY') }}"
+          KESTRA_DATA_INICIAL: "{{ inputs.data_inicial | default('') }}"
+          KESTRA_DATA_FINAL: "{{ inputs.data_final | default('') }}"
+          KESTRA_CLIENTE_ID: "{{ inputs.cliente_id | default('TODOS') }}"
+        beforeCommands:
+          - pip install --no-cache-dir -r requirements.txt
+        script: |
+          import sys
+          import subprocess
+          print("Iniciando Orquestrador Giga Tech V2...")
+          subprocess.check_call([sys.executable, "worker_gigatech/main.py"])
