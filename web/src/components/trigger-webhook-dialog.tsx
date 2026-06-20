@@ -8,6 +8,7 @@ import { DateRange } from "react-day-picker"
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
+import { triggerKestraFlow } from "@/app/dashboard/clientes/actions"
 import {
   Dialog,
   DialogContent,
@@ -53,25 +54,14 @@ export function TriggerWebhookDialog({ clienteId, clienteNome }: TriggerWebhookD
     setSuccess(false)
 
     try {
-      const url = process.env.NEXT_PUBLIC_KESTRA_WEBHOOK_URL
-      if (!url || url === "COLOQUE_A_URL_DO_KESTRA_AQUI") {
-        throw new Error("URL do Webhook não configurada no painel.")
-      }
+      const res = await triggerKestraFlow(
+        clienteId,
+        format(date.from, "dd/MM/yyyy"),
+        format(date.to, "dd/MM/yyyy")
+      )
 
-      const response = await fetch(url, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json"
-        },
-        body: JSON.stringify({
-          cliente_id: clienteId,
-          data_inicial: format(date.from, "dd/MM/yyyy"),
-          data_final: format(date.to, "dd/MM/yyyy")
-        })
-      })
-
-      if (!response.ok) {
-        throw new Error("Falha ao disparar automação no servidor Kestra.")
+      if (res?.error) {
+        throw new Error(res.error)
       }
 
       setSuccess(true)

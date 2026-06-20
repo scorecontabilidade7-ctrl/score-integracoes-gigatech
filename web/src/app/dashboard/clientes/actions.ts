@@ -58,3 +58,34 @@ export async function updateCliente(formData: FormData) {
   revalidatePath('/dashboard/clientes')
   return { success: true }
 }
+
+export async function triggerKestraFlow(clienteId: string, dataInicial: string, dataFinal: string) {
+  const url = process.env.KESTRA_WEBHOOK_URL
+  if (!url) {
+    return { error: 'A URL do Webhook do Kestra não está configurada no servidor (KESTRA_WEBHOOK_URL).' }
+  }
+
+  try {
+    const response = await fetch(url, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        cliente_id: clienteId,
+        data_inicial: dataInicial,
+        data_final: dataFinal
+      })
+    })
+
+    if (!response.ok) {
+      throw new Error(`O Kestra retornou erro status ${response.status}`)
+    }
+
+    return { success: true }
+  } catch (err: any) {
+    console.error("Erro ao acionar webhook do Kestra:", err)
+    return { error: err.message || 'Erro de rede ou conexão com o Kestra.' }
+  }
+}
+
