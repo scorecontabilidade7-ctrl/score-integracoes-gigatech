@@ -81,7 +81,27 @@ Todo o código da automação foi isolado na pasta `worker_gigatech/` para não 
 
 ---
 
+## ✅ Fase 6: Integração Final de Logs e Painel de Monitoramento (Concluída)
+
+**Objetivo:** Conectar a API do Kestra à interface web para substituir os dados mockados por informações em tempo real das execuções do orquestrador, exibindo logs detalhados e gráficos de performance.
+
+### Tecnologias e Implementações (Logs e Recharts)
+- **Integração REST Kestra**: Criada uma camada utilitária em [`web/src/utils/kestra.ts`](file:///c:/Users/LucasVitorino/Documents/Score/score-integracoes-gigatech/web/src/utils/kestra.ts) para se comunicar diretamente com a API do Kestra (`/api/v1/executions/search` e `/api/v1/logs/search`), parseando a URL dinâmica a partir de `KESTRA_WEBHOOK_URL` e utilizando credenciais seguras de Basic Auth via `KESTRA_BASIC_AUTH`.
+- **Painel de Controle de Execuções (`LogsTable`)**:
+  - Exibe a lista de execuções ordenadas cronologicamente (da mais recente para a mais antiga).
+  - Atualiza em tempo real o status de execuções rodando através de polling inteligente no frontend.
+- **Console Terminal Interativo**:
+  - Drawer lateral expandido (`data-[side=right]:sm:max-w-4xl`) estilizado em formato de console/terminal escuro (`slate-950`).
+  - Utiliza fonte monoespaçada (`JetBrains Mono`), evita quebras indesejadas de linha e exibe as mensagens de log coloridas de acordo com o nível (`INFO`, `WARN`, `ERROR`).
+  - Polling dinâmico que atualiza as linhas do console em tempo real enquanto a execução estiver ativa.
+  - Botão de controle de scroll automático para fácil leitura desde o início.
+- **Gráfico de Evolução de Processamento (`ProcessChart`)**:
+  - Gráfico de barras interativo construído com Recharts que mostra a duração (em segundos) de cada execução e sua respectiva classificação de status (Sucesso, Falha, Rodando).
+  - Ajustes de usabilidade: remoção de borda/outline azul de foco ao clicar no gráfico e cursor transparente para polir a interação visual.
+
+---
+
 ## 🚀 Próximas Fases (Planejamento)
 
-1. **Fase 6 (Integração Final de Logs):** Conectar a API do Kestra à tabela de Histórico de Execuções (`LogsPage`) para substituir os dados estáticos da interface pelas trilhas verdadeiras do Kestra.
-2. **Fase 7 (Autenticação Completa):** Plugar a rota de login real com Supabase Auth baseando-se no e-mail master do administrador.
+1. **Fase 7 (Autenticação Completa):** Plugar a rota de login real com Supabase Auth baseando-se no e-mail master do administrador.
+

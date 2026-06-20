@@ -1,19 +1,30 @@
 import { createClient } from '@/utils/supabase/server'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Users, ShoppingCart, Package, UsersRound } from 'lucide-react'
+import { Users, ShoppingCart, Package, UsersRound, AlertCircle } from 'lucide-react'
+import { getKestraExecutions } from '@/utils/kestra'
+import ProcessChart from '@/components/process-chart'
+
+export const dynamic = 'force-dynamic' // Garante que a página sempre busque dados novos
 
 export default async function DashboardOverview() {
   const supabase = await createClient()
 
-  // Buscar totais das tabelas
-  const [{ count: totalClientes }, { count: totalVendas }, { count: totalEstoque }, { count: totalVendedores }] = await Promise.all([
+  // Buscar totais das tabelas e as execuções do Kestra
+  const isKestraConfigured = !!process.env.KESTRA_WEBHOOK_URL
+  
+  const [
+    { count: totalClientes }, 
+    { count: totalVendas }, 
+    { count: totalEstoque }, 
+    { count: totalVendedores },
+    executions
+  ] = await Promise.all([
     supabase.from('gigatech_clientes_config').select('*', { count: 'exact', head: true }).eq('ativo', true),
     supabase.from('gigatech_vendas').select('*', { count: 'exact', head: true }),
     supabase.from('gigatech_estoque').select('*', { count: 'exact', head: true }),
-    supabase.from('gigatech_vendedores').select('*', { count: 'exact', head: true })
+    supabase.from('gigatech_vendedores').select('*', { count: 'exact', head: true }),
+    isKestraConfigured ? getKestraExecutions() : Promise.resolve([])
   ])
-
-  // Aqui no futuro implementaremos a lógica de evolução diária no Recharts (buscar agrupado por data)
 
   return (
     <div className="space-y-6">
@@ -23,7 +34,7 @@ export default async function DashboardOverview() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl">
+        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Clientes Ativos</CardTitle>
             <Users className="h-4 w-4 text-primary" />
@@ -33,7 +44,7 @@ export default async function DashboardOverview() {
           </CardContent>
         </Card>
         
-        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl">
+        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Vendas Processadas</CardTitle>
             <ShoppingCart className="h-4 w-4 text-primary" />
@@ -43,7 +54,7 @@ export default async function DashboardOverview() {
           </CardContent>
         </Card>
         
-        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl">
+        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Registros de Estoque</CardTitle>
             <Package className="h-4 w-4 text-primary" />
@@ -53,7 +64,7 @@ export default async function DashboardOverview() {
           </CardContent>
         </Card>
         
-        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl">
+        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium text-muted-foreground">Vendedores</CardTitle>
             <UsersRound className="h-4 w-4 text-primary" />
@@ -65,16 +76,26 @@ export default async function DashboardOverview() {
       </div>
 
       <div className="grid gap-4 md:grid-cols-1">
-        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl min-h-[400px]">
-          <CardHeader>
-            <CardTitle className="text-base font-medium">Evolução de Processamento</CardTitle>
+        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white min-h-[400px]">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base font-semibold">Tempos de Processamento</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Duração e status das últimas execuções de sincronização do robô.
+            </p>
           </CardHeader>
-          <CardContent className="flex items-center justify-center text-sm text-muted-foreground min-h-[300px]">
-            {/* O Gráfico do Recharts vai entrar aqui futuramente após agregarmos via RPC ou SQL View */}
-            A evolução diária será renderizada após a primeira extração bem sucedida.
+          <CardContent className="min-h-[300px] flex items-center justify-center pt-4">
+            {!isKestraConfigured ? (
+              <div className="flex items-center gap-2 text-sm text-rose-500 font-mono">
+                <AlertCircle className="h-4 w-4" />
+                <span>Kestra não configurado no servidor.</span>
+              </div>
+            ) : (
+              <ProcessChart executions={executions} />
+            )}
           </CardContent>
         </Card>
       </div>
     </div>
   )
 }
+
