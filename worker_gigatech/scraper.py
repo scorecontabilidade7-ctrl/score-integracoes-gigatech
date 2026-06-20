@@ -87,17 +87,17 @@ def capture_pdf_via_print_button(page, context, button_locator, dest_name):
     context.on("response", on_response)
     popup_page = None
     try:
-        with page.expect_popup(timeout=10000) as popup_info:
+        with page.expect_popup(timeout=60000) as popup_info:
             safe_click(button_locator)
         popup_page = popup_info.value
         if popup_page:
-            popup_page.wait_for_load_state("domcontentloaded", timeout=15000)
+            popup_page.wait_for_load_state("domcontentloaded", timeout=60000)
             popup_page.wait_for_timeout(3000)
     except: pass
     
     if pdf_bytes is None:
         try:
-            with page.expect_download(timeout=10000) as download_info:
+            with page.expect_download(timeout=90000) as download_info:
                 safe_click(button_locator)
             download = download_info.value
             temp_path = download.path()
@@ -150,19 +150,19 @@ def extrair_dados(cliente_config, data_inicial, data_final):
                 'xpath=//form[contains(@id,"frmVenda")]//button[not(contains(@class,"ui-splitbutton-menubutton")) and .//span[contains(normalize-space(.),"Exportar Xlsx")]]',
                 'xpath=//button[.//span[normalize-space()="Exportar Xlsx"] and not(contains(@class, "ui-splitbutton-menubutton"))]'
             ])
-            with page.expect_download(timeout=60000) as d:
+            with page.expect_download(timeout=270000) as d:
                 btn.click(timeout=30000, force=True)
             vendas_path = TMP_DIR / f"vendas_{cliente_id}.xls"
             shutil.copy(d.value.path(), vendas_path)
             arquivos["vendas_excel"] = str(vendas_path)
-
+ 
             # VENDEDOR PDF
             print("[SCRAPER] Baixando Vendas Vendedor PDF")
             safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios9"]/a'))
             fill_dates(page, "frmTitulo", data_inicial, data_final)
             pdf_btn = first_visible(page, ['xpath=//*[@id="frmTitulo:j_idt142"]', 'xpath=//button[contains(.,"Imprimir")]'])
             arquivos["vendedores_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn, f"vendedores_{cliente_id}.pdf")
-
+ 
             # ESTOQUE EXCEL
             print("[SCRAPER] Baixando Custo Estoque Excel")
             page.goto(page.url, wait_until="domcontentloaded")
@@ -171,7 +171,7 @@ def extrair_dados(cliente_config, data_inicial, data_final):
             safe_click(page.locator('xpath=//*[@id="menuform:frm_rel_custo_estoque"]/a'))
             page.wait_for_timeout(1000)
             btn_est = page.locator('xpath=//button[.//span[normalize-space()="Exportar"]]')
-            with page.expect_download(timeout=60000) as d:
+            with page.expect_download(timeout=150000) as d:
                 safe_click(btn_est)
             estoque_path = TMP_DIR / f"estoque_{cliente_id}.xlsx"
             shutil.copy(d.value.path(), estoque_path)
