@@ -169,7 +169,7 @@ export async function getKestraExecutions(): Promise<KestraExecution[]> {
         status: statusFormat,
         tempo: tempoStr,
         data: dataStr,
-        kestraUrl: `${uiBaseUrl}/executions/${exec.id}`,
+        kestraUrl: `${uiBaseUrl}/executions/${namespace}/${flowId}/${exec.id}/logs`,
         originalState: rawState,
         durationSeconds
       }
