@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { 
   BarChart, 
   Bar, 
@@ -22,38 +22,34 @@ interface ProcessChartProps {
 
 export default function ProcessChart({ executions }: ProcessChartProps) {
   const [currentExecutions, setCurrentExecutions] = useState<KestraExecution[]>(executions)
+  const executionsRef = useRef(currentExecutions)
+
+  // Sincroniza a ref sempre que o estado interno mudar
+  useEffect(() => {
+    executionsRef.current = currentExecutions
+  }, [currentExecutions])
 
   // Sincroniza o estado se as props mudarem (ex: clique no botão de atualizar no pai)
   useEffect(() => {
     setCurrentExecutions(executions)
   }, [executions])
 
-  // Efeito 1: Polling da API a cada 4 segundos se houver alguma execução rodando
+  // Timer unificado: Atualiza visualmente a cada 1s e sincroniza com a API a cada 4s
   useEffect(() => {
-    const hasRunning = currentExecutions.some(e => e.status === 'Em Execução')
+    const hasRunning = executionsRef.current.some(e => e.status === 'Em Execução')
     if (!hasRunning) return
 
-    const poll = async () => {
-      try {
-        const res = await fetchKestraExecutionsAction()
-        if (res.success && res.executions) {
-          setCurrentExecutions(res.executions)
-        }
-      } catch (err) {
-        console.error("Erro no polling de execuções no gráfico:", err)
+    let tickCount = 0
+
+    const timerId = setInterval(async () => {
+      // Verifica se a execução ainda está ativa antes de processar
+      const stillRunning = executionsRef.current.some(e => e.status === 'Em Execução')
+      if (!stillRunning) {
+        clearInterval(timerId)
+        return
       }
-    }
 
-    const intervalId = setInterval(poll, 4000)
-    return () => clearInterval(intervalId)
-  }, [currentExecutions])
-
-  // Efeito 2: Incrementa em tempo real a duração da barra rodando a cada 1 segundo
-  useEffect(() => {
-    const hasRunning = currentExecutions.some(e => e.status === 'Em Execução')
-    if (!hasRunning) return
-
-    const increment = () => {
+      // 1. Incrementa visualmente a duração (segundo a segundo)
       setCurrentExecutions(prev => 
         prev.map(e => {
           if (e.status === 'Em Execução') {
@@ -71,11 +67,29 @@ export default function ProcessChart({ executions }: ProcessChartProps) {
           return e
         })
       )
-    }
 
-    const intervalId = setInterval(increment, 1000)
-    return () => clearInterval(intervalId)
-  }, [currentExecutions])
+      // 2. A cada 4 ticks (4s), consulta a API do Kestra para ver se concluiu
+      tickCount += 1
+      if (tickCount % 4 === 0) {
+        try {
+          const res = await fetchKestraExecutionsAction()
+          if (res.success && res.executions) {
+            setCurrentExecutions(res.executions)
+            
+            // Se concluiu todas as execuções, encerra o timer imediatamente
+            const anyRunning = res.executions.some(e => e.status === 'Em Execução')
+            if (!anyRunning) {
+              clearInterval(timerId)
+            }
+          }
+        } catch (err) {
+          console.error("Erro no polling de execuções no gráfico:", err)
+        }
+      }
+    }, 1000)
+
+    return () => clearInterval(timerId)
+  }, [executions])
 
   if (!currentExecutions || currentExecutions.length === 0) {
     return (
