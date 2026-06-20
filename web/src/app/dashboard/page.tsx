@@ -3,6 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Users, ShoppingCart, Package, UsersRound, AlertCircle } from 'lucide-react'
 import { getKestraExecutions } from '@/utils/kestra'
 import ProcessChart from '@/components/process-chart'
+import RefreshButton from '@/components/refresh-button'
 
 export const dynamic = 'force-dynamic' // Garante que a página sempre busque dados novos
 
@@ -28,10 +29,14 @@ export default async function DashboardOverview() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-1">
-        <h2 className="text-2xl font-bold tracking-tight">Overview</h2>
-        <p className="text-muted-foreground text-sm">Acompanhe o volume de processamento do robô da Giga Tech.</p>
+      <div className="flex justify-between items-center gap-4">
+        <div className="flex flex-col gap-1">
+          <h2 className="text-2xl font-bold tracking-tight">Overview</h2>
+          <p className="text-muted-foreground text-sm">Acompanhe o volume de processamento do robô da Giga Tech.</p>
+        </div>
+        <RefreshButton />
       </div>
+
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white">
