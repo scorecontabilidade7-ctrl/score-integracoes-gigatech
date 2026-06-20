@@ -37,6 +37,16 @@ export function TriggerWebhookDialog({ clienteId, clienteNome }: TriggerWebhookD
   const [error, setError] = React.useState<string | null>(null)
   const [success, setSuccess] = React.useState(false)
 
+  const daysDifference = React.useMemo(() => {
+    if (!date?.from || !date?.to) return null
+    return differenceInDays(date.to, date.from)
+  }, [date])
+
+  const isPeriodValid = React.useMemo(() => {
+    if (daysDifference === null) return false
+    return daysDifference >= 0 && daysDifference <= 31
+  }, [daysDifference])
+
   const handleExecute = async () => {
     if (!date?.from || !date?.to) {
       setError("Selecione um período de datas.")
@@ -136,12 +146,18 @@ export function TriggerWebhookDialog({ clienteId, clienteNome }: TriggerWebhookD
             </Popover>
           </div>
 
+          {daysDifference !== null && daysDifference > 31 && (
+            <div className="text-xs text-amber-600 bg-amber-50 p-2 rounded-lg border border-amber-200">
+              ⚠️ O período selecionado ({daysDifference} dias) excede o limite de 31 dias.
+            </div>
+          )}
+
           {error && <div className="text-sm text-red-500 font-medium bg-red-50 p-2 rounded-lg">{error}</div>}
           {success && <div className="text-sm text-green-600 font-medium bg-green-50 p-2 rounded-lg">Fluxo disparado com sucesso! O Kestra já iniciou o processamento.</div>}
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)} className="rounded-xl">Cancelar</Button>
-          <Button type="button" onClick={handleExecute} disabled={loading || success} className="rounded-xl">
+          <Button type="button" onClick={handleExecute} disabled={loading || success || !isPeriodValid} className="rounded-xl">
             {loading ? "Disparando..." : success ? "Enviado!" : "Confirmar Execução"}
           </Button>
         </DialogFooter>

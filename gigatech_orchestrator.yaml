@@ -18,9 +18,9 @@ inputs:
     defaults: "TODOS"
 
 triggers:
-  - id: daily_schedule
+  - id: hourly_schedule
     type: io.kestra.plugin.core.trigger.Schedule
-    cron: "0 3 * * *" # Roda todo dia às 03:00 da manhã
+    cron: "0 7-20 * * 1-6" # De segunda a sábado, a cada 1 hora das 07:00 às 20:00
   - id: webhook_trigger
     type: io.kestra.plugin.core.trigger.Webhook
     key: "GIGATECH_EXTRACT_KEY"
