@@ -1,47 +1,154 @@
-# 🤖 Automação Giga Tech: O Fluxo Simplificado
+# 🚀 Giga Tech Multi-tenant (V2.0)
 
-> [!NOTE]
-> Este documento é o mapa definitivo do projeto. Ele explica de forma didática e visual como as informações saem do sistema de gestão web (Giga Tech) e chegam perfeitamente organizadas no banco de dados. Este fluxo foi desenhado para ser totalmente escalável e poder rodar para múltiplos clientes no futuro.
+Sistema robusto de automação de relatórios, orquestração e gerenciamento de múltiplos clientes (Multi-tenant). O projeto integra o ERP **Giga Tech**, processamento de dados em **Python**, banco de dados **Supabase**, agendamento automatizado no **Kestra** e um **Dashboard Web** administrativo construído em **Next.js 15**.
 
-## 🗺️ O Mapa Geral do Fluxo (Como as coisas funcionam)
+---
 
-Abaixo temos o "caminho" que os dados fazem, do início (sistema Giga Tech) até o fim (banco de dados de cada cliente):
+## 🗺️ Mapa de Arquitetura e Fluxo de Dados
+
+Abaixo está ilustrado como os dados trafegam pelo ecossistema, desde o agendamento no Kestra ou ação na UI até a gravação final otimizada no banco de dados.
 
 ```mermaid
 graph TD
-    subgraph Passo 1: Coleta de Dados
-    A[Sistema de Gestão Giga Tech] -- "O Robô Extrair.py acessa e baixa tudo" --> B((📦 Supabase Storage \n Pasta com a data de hoje))
+    subgraph UI & Gestão
+        Web[💻 Dashboard Next.js 15] -- "Gerencia Credenciais & Status" --> DB_Config[(gigatech_clientes_config)]
+        Web -- "Dispara retroativos via Webhook" --> Kestra[⚙️ Orquestrador Kestra]
     end
 
-    subgraph Passo 2: Processamento e Organização
-    B -- "Lê PDF de Clientes" --> C[Robô: Clientes.py]
-    B -- "Lê Excel + PDF de Vendas" --> D[Robô: Vendas.py]
-    B -- "Lê Excel de Custo" --> E[Robô: storage.py]
+    subgraph Processamento (Worker Python)
+        Kestra -- "Executa Script Python" --> Worker[🤖 Worker Giga Tech]
+        Worker -- "1. Lê Clientes Ativos" --> DB_Config
+        Worker -- "2. Playwright Headless Scraper" --> ERP[🖥️ Giga Tech ERP Web]
+        ERP -- "Download Relatórios (.xls, .pdf)" --> TempFiles[📁 Downloads Temporários]
+        TempFiles -- "3. Tratamento & Mapeamento" --> Pandas[🐼 Pandas / PDFPlumber]
+        Pandas -- "4. Batch Ingest & Idempotência" --> DB_Staging[(Supabase Staging Tables)]
     end
 
-    subgraph Passo 3: Destino Final
-    C -- "Apenas clientes novos" --> F[(Tabela do Cliente: Clientes)]
-    D -- "Apenas vendas inéditas" --> G[(Tabela do Cliente: Vendas)]
-    E -- "Atualiza preços/quantidades" --> H[(Tabela do Cliente: Estoque)]
+    subgraph Armazenamento (Supabase)
+        DB_Staging -- "Vendas Detalhadas" --> Vendas[(gigatech_vendas)]
+        DB_Staging -- "Vendedores por Cupom" --> Vendedores[(gigatech_vendedores)]
+        DB_Staging -- "Novos Clientes Cadastrados" --> Clientes[(gigatech_clientes_novos)]
+        DB_Staging -- "Custo de Estoque" --> Estoque[(gigatech_estoque)]
     end
 ```
 
-## 🎯 De-Para: Qual Código faz O Quê?
+---
 
-Aqui está a tradução exata de qual script é responsável por qual relatório e para qual tabela do Supabase os dados são enviados.
+## 💎 Principais Características
 
-| 🖥️ Nome do Código (Script) | 📄 Qual Relatório ele lê da Nuvem? | 🗄️ Em qual Tabela do Supabase ele salva? | 🛠️ O que ele faz exatamente? |
-| :--- | :--- | :--- | :--- |
-| **`Extrair.py`** | *(Nenhum. Ele gera todos eles do sistema)* | **Bucket "Relatorios"** (Armazenamento de Arquivos) | Faz o login no sistema web Giga Tech, baixa os 4 relatórios brutos do dia e guarda todos na "nuvem" na pasta de hoje. |
-| **`Clientes.py`** | `Relatorio de Clientes Novos.pdf` | Tabela **`clientes`** *(do cliente específico)* | Compara os nomes do PDF com o banco. Cadastra clientes novos e corrige errinhos de digitação nos antigos. |
-| **`Vendas.py`** | `Relatorio de Vendas.xls` <br> `Relatorio de Vendas Vendedor.pdf` | Tabela **`Vendas For Men`** *(ou tabela dinâmica de Vendas)* | "Casa" os valores do Excel com o nome do vendedor do PDF. Insere no banco apenas as vendas que ainda não estavam lá. |
-| **`storage.py`** | `Relatorio de Custo Estoque.xls` | Tabela **`Estoque`** *(via variável do .env)* | Compara o Excel com o banco atual usando o código de barras (EAN). Atualiza custos, preços e as quantidades do estoque. |
+> [!TIP]
+> **Fim do Supabase Storage**: A arquitetura 2.0 elimina totalmente o uso de Buckets. Os relatórios baixados pelo Playwright são processados diretamente na memória do container local e inseridos no banco.
 
-## 💡 A Metáfora para não esquecer mais!
+* **Multi-tenant Nativo**: Suporte para ilimitados clientes na mesma estrutura. Todos os dados brutos possuem vinculação com a chave `cliente_id` associada à tabela `gigatech_clientes_config`.
+* **Idempotência Garantida**: A re-execução do fluxo para qualquer período retroativo é 100% segura. O script executa o método `clean_period_data()` limpando os dados preexistentes daquele intervalo de datas antes de inserir o novo bloco.
+* **Resiliência de Layouts**: O processador de dados mapeia e suporta variações dinâmicas de colunas feitas pelo ERP (como `EAN`, `Cod.Barra`, `Cód Barra`).
+* **Kestra Integration (D-1 Automático)**: Caso execute no agendador diário sem parâmetros explícitos, o worker calcula e processa as informações retroativas de ontem (D-1) automaticamente.
+* **Painel Administrativo Premium**: Interface web moderna que centraliza o controle de credenciais dos clientes, exibição das últimas execuções de logs e modal flutuante para disparo retroativo individual.
 
-Pense na loja/empresa do seu cliente como um grande restaurante e nesses robôs como os funcionários mais dedicados que prestam serviço a ele:
+---
 
-- O **`Extrair.py`** é o **Gerente Geral**: Ele vai de setor em setor (telas do sistema web Giga Tech) no final do expediente recolhendo toda a papelada e joga em cima de uma grande mesa para os outros processarem (a mesa é a pasta no Supabase Storage).
-- O **`Clientes.py`** é a **Recepcionista da porta**: Ela pega a prancheta de clientes novos na mesa, olha quem são as caras novas e coloca o nome deles na lista VIP do banco de dados do cliente.
-- O **`Vendas.py`** é o **Contador**: Ele pega os recibos do caixa (Excel) e os bloquinhos dos garçons (PDF), grampeia os dois juntos e lança no livro caixa, garantindo que nenhuma venda seja contabilizada duas vezes.
-- O **`storage.py`** é o **Almoxarife**: Ele entra no estoque com a prancheta atualizada (Excel) e vai prateleira por prateleira conferindo os códigos de barras para ter certeza de que o custo e a quantidade do banco batem exatamente com a realidade física.
+## 📁 Estrutura do Projeto
+
+O repositório é composto por dois ecossistemas principais:
+
+```
+├── worker_gigatech/           # 🐍 Automação e Processamento (Python)
+│   ├── main.py                # Orquestrador local, loop de clientes e fluxo D-1
+│   ├── scraper.py             # Automação Playwright para login e download de relatórios
+│   ├── processor.py           # Tratamento, limpeza e parsing de XLS/PDF via Pandas
+│   ├── database.py            # Operações no Supabase, insert em batch e idempotência
+│   └── tmp_downloads/         # Diretório temporário para arquivos locais
+│
+├── web/                       # 🌐 Dashboard Administrativo (Next.js 15)
+│   ├── src/
+│   │   ├── app/               # Roteamento e telas (Dashboard, Clientes, Logs)
+│   │   ├── components/        # Componentes UI (Tabelas, Sidebar, Modais)
+│   │   └── utils/             # Conexão e integração com Supabase Client/Server
+│   └── package.json
+│
+├── gigatech_orchestrator.yaml # ⚙️ Definição da orquestração no Kestra
+├── requirements.txt           # Dependências do ambiente Python
+└── agent.md                   # Histórico de desenvolvimento e documentação técnica do agente
+```
+
+---
+
+## 🛠️ Configuração e Instalação
+
+### 1. Requisitos Pró-ativos
+* **Python 3.10+** (Recomendado `.venv`)
+* **Node.js 18+**
+* Projeto no **Supabase** ativo com as tabelas `gigatech_*` criadas.
+
+### 2. Configurando as Variáveis de Ambiente (`.env`)
+Copie o arquivo `.env.example` e crie um arquivo `.env` na raiz do projeto (e também em `web/.env.local` para a interface Next.js):
+
+```env
+# Conexão Supabase
+SUPABASE_URL="sua-url-do-supabase"
+SUPABASE_KEY="seu-token-key-do-supabase"
+
+# Webhook do Kestra (para disparos retroativos)
+KESTRA_WEBHOOK_URL="sua-url-do-webhook-kestra"
+```
+
+---
+
+## 🚀 Como Executar
+
+### 🐍 Rodando o Worker Python (Automação)
+
+1. Crie e ative o ambiente virtual:
+   ```bash
+   python -m venv .venv
+   .venv\Scripts\activate      # Windows
+   source .venv/bin/activate    # Linux/macOS
+   ```
+2. Instale as dependências:
+   ```bash
+   pip install -r requirements.txt
+   playwright install chromium
+   ```
+3. Execute o robô:
+   * **Execução Geral (Todos os clientes ativos - Ontem D-1):**
+     ```bash
+     python -m worker_gigatech.main
+     ```
+   * **Execução Retroativa Individual (Passando parâmetros):**
+     ```bash
+     $env:KESTRA_CLIENTE_ID="uuid-do-cliente"
+     $env:DATA_INICIAL="2026-06-01"
+     $env:DATA_FINAL="2026-06-15"
+     python -m worker_gigatech.main
+     ```
+
+### 💻 Rodando o Dashboard Web (Interface)
+
+1. Acesse o diretório frontend:
+   ```bash
+   cd web
+   ```
+2. Instale as dependências NPM:
+   ```bash
+   npm install
+   ```
+3. Inicie o servidor de desenvolvimento:
+   ```bash
+   npm run dev
+   ```
+4. Acesse em seu navegador: [http://localhost:3000](http://localhost:3000)
+
+---
+
+## 🗄️ Tabelas do Supabase (Modelo de Dados)
+
+> [!IMPORTANT]
+> Todas as tabelas de dados brutos estão indexadas nas colunas `cliente_id` e `data_venda` (ou `data_cadastro`) para consultas velozes no Dashboard.
+
+| Tabela | Função | Colunas Principais |
+| :--- | :--- | :--- |
+| **`gigatech_clientes_config`** | Configurações & Login | `id` (UUID), `nome_loja`, `email_login_giga`, `senha_login_giga`, `ativo` (Bool) |
+| **`gigatech_vendas`** | Relatório de Vendas | `cliente_id` (FK), `data_venda`, `n_cupom`, `produto`, `ean`, `quantidade`, `valor_venda` |
+| **`gigatech_vendedores`** | Vendedores vinculados | `cliente_id` (FK), `data_venda`, `n_cupom`, `nome_vendedor`, `nome_cliente` |
+| **`gigatech_clientes_novos`**| Clientes Novos | `cliente_id` (FK), `nome_cliente`, `data_cadastro` |
+| **`gigatech_estoque`** | Custo e Quantidade | `cliente_id` (FK), `ean`, `produto`, `quantidade`, `valor_venda`, `custo` |
