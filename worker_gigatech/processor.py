@@ -212,6 +212,12 @@ def process_estoque_excel(file_path: str, cliente_id: str):
     elif "Descrição" in df.columns:
         df = df.dropna(subset=["Descrição"])
     
+    def clean_val(v):
+        if pd.isna(v) or v is None:
+            return None
+        val_str = str(v).strip()
+        return val_str if val_str else None
+
     registros = []
     for _, row in df.iterrows():
         # Validar EAN
@@ -222,10 +228,13 @@ def process_estoque_excel(file_path: str, cliente_id: str):
         registros.append({
             "cliente_id": cliente_id,
             "ean": ean,
-            "produto": str(row.get("DES_PRODUTO", row.get("Descrição", ""))).strip(),
+            "produto": clean_val(row.get("DES_PRODUTO", row.get("Descrição", ""))),
             "quantidade": safe_float(row.get("QTD_ESTOQUE_ATUAL", row.get("Estoque Atual", 0))),
             "valor_venda": safe_float(row.get("VAL_VENDA", row.get("P. Venda", row.get("Preço Venda", 0)))),
-            "custo": safe_float(row.get("VAL_CUSTO", row.get("Preço Compra", row.get("Custo", 0))))
+            "custo": safe_float(row.get("VAL_CUSTO", row.get("Preço Compra", row.get("Custo", 0)))),
+            "marca": clean_val(row.get("DES_MARCA", row.get("Marca"))),
+            "cor": clean_val(row.get("COR", row.get("Cor"))),
+            "departamento": clean_val(row.get("DEPARTAMENTO", row.get("Departamento")))
         })
 
     batch_insert("gigatech_estoque", registros)
