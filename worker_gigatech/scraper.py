@@ -42,7 +42,7 @@ def login(page, url, user, pwd):
 
 def fill_dates(page, form_id, data_inicial, data_final):
     # Encontra os inputs de data específicos do formulário ativo (ex: frmVenda, frmTitulo, etc)
-    date_inputs = page.locator(f'//form[contains(@id,"{form_id}")]//input[contains(@class,"hasDatepicker") or contains(@id,"_input")] >> visible=true')
+    date_inputs = page.locator(f'//form[contains(@id,"{form_id}")]//input[contains(@class,"hasDatepicker")] >> visible=true')
     date_inputs.first.wait_for(state="visible", timeout=15000)
     count = date_inputs.count()
     if count >= 2:
@@ -150,7 +150,6 @@ def extrair_dados(cliente_config, data_inicial, data_final):
             fill_dates(page, "frmVenda", data_inicial, data_final)
             page.wait_for_timeout(1000)
             btn = first_visible(page, [
-                '#frmVenda\\:j_idt171',
                 'xpath=//form[contains(@id,"frmVenda")]//button[not(contains(@class,"ui-splitbutton-menubutton")) and .//span[contains(normalize-space(.),"Exportar Xlsx")]]',
                 'xpath=//button[.//span[normalize-space()="Exportar Xlsx"] and not(contains(@class, "ui-splitbutton-menubutton"))]'
             ])
