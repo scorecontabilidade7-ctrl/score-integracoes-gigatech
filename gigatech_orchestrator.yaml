@@ -40,9 +40,9 @@ tasks:
         env:
           SUPABASE_URL: "{{ kv('SUPABASE_URL') }}"
           SUPABASE_KEY: "{{ kv('SUPABASE_KEY') }}"
-          KESTRA_DATA_INICIAL: "{{ inputs.data_inicial | default('') }}"
-          KESTRA_DATA_FINAL: "{{ inputs.data_final | default('') }}"
-          KESTRA_CLIENTE_ID: "{{ inputs.cliente_id | default('TODOS') }}"
+          KESTRA_DATA_INICIAL: "{{ trigger.body.data_inicial | default(inputs.data_inicial) | default('') }}"
+          KESTRA_DATA_FINAL: "{{ trigger.body.data_final | default(inputs.data_final) | default('') }}"
+          KESTRA_CLIENTE_ID: "{{ trigger.body.cliente_id | default(inputs.cliente_id) | default('TODOS') }}"
         beforeCommands:
           - pip install --no-cache-dir -r requirements.txt
         script: |
