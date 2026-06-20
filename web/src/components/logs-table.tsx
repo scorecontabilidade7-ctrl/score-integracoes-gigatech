@@ -51,6 +51,22 @@ export default function LogsTable({ initialExecutions }: LogsTableProps) {
   const [sheetOpen, setSheetOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
 
+  // Paginação de 10 em 10
+  const [currentPage, setCurrentPage] = useState(1)
+  const itemsPerPage = 10
+  const totalPages = Math.ceil(executions.length / itemsPerPage) || 1
+  const startIndex = (currentPage - 1) * itemsPerPage
+  const endIndex = startIndex + itemsPerPage
+  const paginatedExecutions = executions.slice(startIndex, endIndex)
+
+  // Ajusta a página atual se a lista for atualizada e encolher
+  useEffect(() => {
+    const maxPage = Math.ceil(executions.length / itemsPerPage) || 1
+    if (currentPage > maxPage) {
+      setCurrentPage(maxPage)
+    }
+  }, [executions])
+
   // Polling em tempo real se houver alguma execução rodando na lista
   useEffect(() => {
     const hasRunningExec = executions.some(e => e.status === 'Em Execução')
@@ -186,7 +202,7 @@ export default function LogsTable({ initialExecutions }: LogsTableProps) {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {executions.map((exec) => (
+            {paginatedExecutions.map((exec) => (
               <TableRow key={exec.id} className="hover:bg-muted/30">
                 <TableCell className="font-medium pl-6">
                   {exec.cliente}
@@ -260,7 +276,7 @@ export default function LogsTable({ initialExecutions }: LogsTableProps) {
               </TableRow>
             ))}
             
-            {executions.length === 0 && (
+            {paginatedExecutions.length === 0 && (
               <TableRow>
                 <TableCell colSpan={6} className="h-24 text-center text-muted-foreground pl-6 pr-6">
                   Nenhuma execução registrada no Kestra ou erro de conexão.
@@ -270,6 +286,38 @@ export default function LogsTable({ initialExecutions }: LogsTableProps) {
           </TableBody>
         </Table>
       </div>
+
+      {/* Paginação */}
+      {totalPages > 1 && (
+        <div className="flex justify-between items-center py-2 px-1">
+          <span className="text-xs text-muted-foreground">
+            Mostrando {startIndex + 1} a {Math.min(endIndex, executions.length)} de {executions.length} execuções
+          </span>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+              disabled={currentPage === 1}
+              className="rounded-xl border-black/5 hover:bg-black/[0.02]"
+            >
+              Anterior
+            </Button>
+            <span className="text-xs font-medium text-foreground px-2">
+              Página {currentPage} de {totalPages}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+              disabled={currentPage === totalPages}
+              className="rounded-xl border-black/5 hover:bg-black/[0.02]"
+            >
+              Próximo
+            </Button>
+          </div>
+        </div>
+      )}
 
       <Sheet open={sheetOpen} onOpenChange={setSheetOpen}>
         <SheetContent className="w-full sm:max-w-4xl data-[side=right]:sm:max-w-4xl bg-zinc-950 text-zinc-100 border-zinc-800 p-0 flex flex-col h-full">
