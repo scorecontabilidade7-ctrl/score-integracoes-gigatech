@@ -28,6 +28,17 @@ interface KestraRawExecution {
     data_inicial?: string
     data_final?: string
   }
+  trigger?: {
+    id: string
+    type: string
+    variables?: {
+      body?: {
+        cliente_id?: string
+        data_inicial?: string
+        data_final?: string
+      }
+    }
+  }
 }
 
 export async function getKestraExecutions(): Promise<KestraExecution[]> {
@@ -94,7 +105,14 @@ export async function getKestraExecutions(): Promise<KestraExecution[]> {
     const uiBaseUrl = baseUrl.replace('/api/v1', '/ui')
 
     return executions.map(exec => {
-      const clienteId = exec.inputs?.cliente_id || ''
+      // Tenta obter o cliente_id dos inputs ou do payload do trigger (webhook)
+      let clienteId = exec.inputs?.cliente_id || exec.trigger?.variables?.body?.cliente_id || ''
+      
+      // Se for disparado pelo agendador de hora em hora e não tiver cliente_id explícito, assume TODOS
+      if (!clienteId && exec.trigger?.id === 'hourly_schedule') {
+        clienteId = 'TODOS'
+      }
+
       const clienteNome = (!clienteId || clienteId.toUpperCase() === 'TODOS')
         ? 'Todos os Clientes'
         : (clientMap.get(clienteId) || `Cliente (${clienteId.substring(0, 8)}...)`)
@@ -135,9 +153,12 @@ export async function getKestraExecutions(): Promise<KestraExecution[]> {
       }
 
       // Formatar nome do fluxo amigável
-      let fluxoNome = 'Carga Horária (D-0)'
-      if (exec.inputs?.data_inicial || exec.inputs?.data_final) {
-        fluxoNome = `Retroativo (${exec.inputs.data_inicial || ''} a ${exec.inputs.data_final || ''})`
+      const dataInicial = exec.inputs?.data_inicial || exec.trigger?.variables?.body?.data_inicial || ''
+      const dataFinal = exec.inputs?.data_final || exec.trigger?.variables?.body?.data_final || ''
+      
+      let fluxoNome = 'Sincronização Diária (D-1)'
+      if (dataInicial || dataFinal) {
+        fluxoNome = `Retroativo (${dataInicial} a ${dataFinal})`
       }
 
       return {
