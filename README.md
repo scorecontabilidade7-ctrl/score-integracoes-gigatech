@@ -10,25 +10,25 @@ Abaixo está ilustrado como os dados trafegam pelo ecossistema, desde o agendame
 
 ```mermaid
 graph TD
-    subgraph UI & Gestão
-        Web[💻 Dashboard Next.js 15] -- "Gerencia Credenciais & Status" --> DB_Config[(gigatech_clientes_config)]
-        Web -- "Dispara retroativos via Webhook" --> Kestra[⚙️ Orquestrador Kestra]
+    subgraph UI ["UI & Gestão"]
+        Web["💻 Dashboard Next.js 15"] -- "Gerencia Credenciais & Status" --> DB_Config[("gigatech_clientes_config")]
+        Web -- "Dispara retroativos via Webhook" --> Kestra["⚙️ Orquestrador Kestra"]
     end
 
-    subgraph Processamento (Worker Python)
-        Kestra -- "Executa Script Python" --> Worker[🤖 Worker Giga Tech]
+    subgraph Proc ["Processamento (Worker Python)"]
+        Kestra -- "Executa Script Python" --> Worker["🤖 Worker Giga Tech"]
         Worker -- "1. Lê Clientes Ativos" --> DB_Config
-        Worker -- "2. Playwright Headless Scraper" --> ERP[🖥️ Giga Tech ERP Web]
-        ERP -- "Download Relatórios (.xls, .pdf)" --> TempFiles[📁 Downloads Temporários]
-        TempFiles -- "3. Tratamento & Mapeamento" --> Pandas[🐼 Pandas / PDFPlumber]
-        Pandas -- "4. Batch Ingest & Idempotência" --> DB_Staging[(Supabase Staging Tables)]
+        Worker -- "2. Playwright Headless Scraper" --> ERP["🖥️ Giga Tech ERP Web"]
+        ERP -- "Download Relatórios (.xls, .pdf)" --> TempFiles["📁 Downloads Temporários"]
+        TempFiles -- "3. Tratamento & Mapeamento" --> Pandas["🐼 Pandas / PDFPlumber"]
+        Pandas -- "4. Batch Ingest & Idempotência" --> DB_Staging[("Supabase Staging Tables")]
     end
 
-    subgraph Armazenamento (Supabase)
-        DB_Staging -- "Vendas Detalhadas" --> Vendas[(gigatech_vendas)]
-        DB_Staging -- "Vendedores por Cupom" --> Vendedores[(gigatech_vendedores)]
-        DB_Staging -- "Novos Clientes Cadastrados" --> Clientes[(gigatech_clientes_novos)]
-        DB_Staging -- "Custo de Estoque" --> Estoque[(gigatech_estoque)]
+    subgraph Store ["Armazenamento (Supabase)"]
+        DB_Staging -- "Vendas Detalhadas" --> Vendas[("gigatech_vendas")]
+        DB_Staging -- "Vendedores por Cupom" --> Vendedores[("gigatech_vendedores")]
+        DB_Staging -- "Novos Clientes Cadastrados" --> Clientes[("gigatech_clientes_novos")]
+        DB_Staging -- "Custo de Estoque" --> Estoque[("gigatech_estoque")]
     end
 ```
 
