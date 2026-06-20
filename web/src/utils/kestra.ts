@@ -156,7 +156,7 @@ export async function getKestraExecutions(): Promise<KestraExecution[]> {
       const dataInicial = exec.inputs?.data_inicial || exec.trigger?.variables?.body?.data_inicial || ''
       const dataFinal = exec.inputs?.data_final || exec.trigger?.variables?.body?.data_final || ''
       
-      let fluxoNome = 'Sincronização Diária (D-1)'
+      let fluxoNome = 'Sincronização Diária (D-0)'
       if (dataInicial || dataFinal) {
         fluxoNome = `Retroativo (${dataInicial} a ${dataFinal})`
       }
