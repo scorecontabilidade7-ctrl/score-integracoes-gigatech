@@ -40,11 +40,13 @@ def login(page, url, user, pwd):
     safe_click(page.locator("#logar"))
     page.locator('xpath=//*[@id="menuform:um_venda"]/a').wait_for(state="visible", timeout=60000)
 
-def fill_dates(page, data_inicial, data_final):
-    date_inputs = page.locator('//form[contains(@id,"frm")]//input[contains(@class,"hasDatepicker")] >> visible=true')
+def fill_dates(page, form_id, data_inicial, data_final):
+    # Encontra os inputs de data específicos do formulário ativo (ex: frmVenda, frmTitulo, etc)
+    date_inputs = page.locator(f'//form[contains(@id,"{form_id}")]//input[contains(@class,"hasDatepicker") or contains(@id,"_input")] >> visible=true')
     date_inputs.first.wait_for(state="visible", timeout=15000)
     count = date_inputs.count()
     if count >= 2:
+        # Preenche data inicial
         date_inputs.nth(0).click()
         page.keyboard.press("Control+A")
         page.keyboard.press("Backspace")
@@ -54,6 +56,7 @@ def fill_dates(page, data_inicial, data_final):
         date_inputs.nth(0).press("Tab")
         page.wait_for_timeout(500)
         
+        # Preenche data final
         date_inputs.nth(1).click()
         page.keyboard.press("Control+A")
         page.keyboard.press("Backspace")
@@ -61,6 +64,16 @@ def fill_dates(page, data_inicial, data_final):
         date_inputs.nth(1).fill(data_final)
         date_inputs.nth(1).press("Enter")
         date_inputs.nth(1).press("Tab")
+        page.wait_for_timeout(500)
+    elif count == 1:
+        # Se o formulário tiver apenas 1 campo de data (como no caso de relatórios que filtram apenas uma data por vez)
+        date_inputs.first.click()
+        page.keyboard.press("Control+A")
+        page.keyboard.press("Backspace")
+        page.wait_for_timeout(300)
+        date_inputs.first.fill(data_inicial)
+        date_inputs.first.press("Enter")
+        date_inputs.first.press("Tab")
         page.wait_for_timeout(500)
 
 def capture_pdf_via_print_button(page, context, button_locator, dest_name):
@@ -134,9 +147,13 @@ def extrair_dados(cliente_config, data_inicial, data_final):
             safe_click(page.locator('xpath=//*[@id="menuform:um_venda"]/a'))
             safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios"]/a'))
             safe_click(page.locator('xpath=//*[@id="menuform:um_rfrm_rel_venda_detalhada_novo"]/a'))
-            fill_dates(page, data_inicial, data_final)
+            fill_dates(page, "frmVenda", data_inicial, data_final)
             page.wait_for_timeout(1000)
-            btn = first_visible(page, ['xpath=//button[.//span[normalize-space()="Exportar Xlsx"] and not(contains(@class, "ui-splitbutton-menubutton"))]'])
+            btn = first_visible(page, [
+                '#frmVenda\\:j_idt171',
+                'xpath=//form[contains(@id,"frmVenda")]//button[not(contains(@class,"ui-splitbutton-menubutton")) and .//span[contains(normalize-space(.),"Exportar Xlsx")]]',
+                'xpath=//button[.//span[normalize-space()="Exportar Xlsx"] and not(contains(@class, "ui-splitbutton-menubutton"))]'
+            ])
             with page.expect_download(timeout=60000) as d:
                 btn.click(timeout=30000, force=True)
             vendas_path = TMP_DIR / f"vendas_{cliente_id}.xlsx"
@@ -146,7 +163,7 @@ def extrair_dados(cliente_config, data_inicial, data_final):
             # VENDEDOR PDF
             print("[SCRAPER] Baixando Vendas Vendedor PDF")
             safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios9"]/a'))
-            fill_dates(page, data_inicial, data_final)
+            fill_dates(page, "frmTitulo", data_inicial, data_final)
             pdf_btn = first_visible(page, ['xpath=//*[@id="frmTitulo:j_idt142"]', 'xpath=//button[contains(.,"Imprimir")]'])
             arquivos["vendedores_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn, f"vendedores_{cliente_id}.pdf")
 
