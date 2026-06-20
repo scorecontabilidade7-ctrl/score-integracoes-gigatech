@@ -133,7 +133,6 @@ export function TriggerWebhookDialog({ clienteId, clienteNome }: TriggerWebhookD
               } />
               <PopoverContent className="w-auto p-0 rounded-2xl" align="start">
                 <Calendar
-                  initialFocus
                   mode="range"
                   defaultMonth={date?.from}
                   selected={date}
