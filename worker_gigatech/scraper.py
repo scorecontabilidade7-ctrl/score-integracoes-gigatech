@@ -52,7 +52,6 @@ def fill_dates(page, form_id, data_inicial, data_final):
         page.keyboard.press("Backspace")
         page.wait_for_timeout(300)
         date_inputs.nth(0).fill(data_inicial)
-        date_inputs.nth(0).press("Enter")
         date_inputs.nth(0).press("Tab")
         page.wait_for_timeout(500)
         
@@ -62,7 +61,6 @@ def fill_dates(page, form_id, data_inicial, data_final):
         page.keyboard.press("Backspace")
         page.wait_for_timeout(300)
         date_inputs.nth(1).fill(data_final)
-        date_inputs.nth(1).press("Enter")
         date_inputs.nth(1).press("Tab")
         page.wait_for_timeout(500)
     elif count == 1:
@@ -72,7 +70,6 @@ def fill_dates(page, form_id, data_inicial, data_final):
         page.keyboard.press("Backspace")
         page.wait_for_timeout(300)
         date_inputs.first.fill(data_inicial)
-        date_inputs.first.press("Enter")
         date_inputs.first.press("Tab")
         page.wait_for_timeout(500)
 
@@ -155,7 +152,7 @@ def extrair_dados(cliente_config, data_inicial, data_final):
             ])
             with page.expect_download(timeout=60000) as d:
                 btn.click(timeout=30000, force=True)
-            vendas_path = TMP_DIR / f"vendas_{cliente_id}.xlsx"
+            vendas_path = TMP_DIR / f"vendas_{cliente_id}.xls"
             shutil.copy(d.value.path(), vendas_path)
             arquivos["vendas_excel"] = str(vendas_path)
 
