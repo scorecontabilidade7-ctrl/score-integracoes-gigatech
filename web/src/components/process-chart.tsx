@@ -100,9 +100,9 @@ export default function ProcessChart({ executions }: ProcessChartProps) {
     )
   }
 
-  // Pegar as últimas 15 execuções e ordenar cronologicamente (da mais antiga para a mais recente)
+  // Pegar as últimas 10 execuções e ordenar cronologicamente (da mais antiga para a mais recente)
   const chartData = [...currentExecutions]
-    .slice(0, 15)
+    .slice(0, 10)
     .reverse()
     .map(e => {
       // Extrair "DD/MM HH:MM" da data formatada "DD/MM/YYYY HH:MM:SS"
