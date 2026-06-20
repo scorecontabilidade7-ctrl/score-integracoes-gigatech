@@ -1,5 +1,6 @@
 'use client'
 
+import { useState, useEffect } from 'react'
 import { 
   BarChart, 
   Bar, 
@@ -11,6 +12,7 @@ import {
   Cell 
 } from 'recharts'
 import { KestraExecution } from '@/utils/kestra'
+import { fetchKestraExecutionsAction } from '@/app/dashboard/logs/actions'
 import { Card, CardContent } from '@/components/ui/card'
 import { AlertCircle, Activity } from 'lucide-react'
 
@@ -19,7 +21,63 @@ interface ProcessChartProps {
 }
 
 export default function ProcessChart({ executions }: ProcessChartProps) {
-  if (!executions || executions.length === 0) {
+  const [currentExecutions, setCurrentExecutions] = useState<KestraExecution[]>(executions)
+
+  // Sincroniza o estado se as props mudarem (ex: clique no botão de atualizar no pai)
+  useEffect(() => {
+    setCurrentExecutions(executions)
+  }, [executions])
+
+  // Efeito 1: Polling da API a cada 4 segundos se houver alguma execução rodando
+  useEffect(() => {
+    const hasRunning = currentExecutions.some(e => e.status === 'Em Execução')
+    if (!hasRunning) return
+
+    const poll = async () => {
+      try {
+        const res = await fetchKestraExecutionsAction()
+        if (res.success && res.executions) {
+          setCurrentExecutions(res.executions)
+        }
+      } catch (err) {
+        console.error("Erro no polling de execuções no gráfico:", err)
+      }
+    }
+
+    const intervalId = setInterval(poll, 4000)
+    return () => clearInterval(intervalId)
+  }, [currentExecutions])
+
+  // Efeito 2: Incrementa em tempo real a duração da barra rodando a cada 1 segundo
+  useEffect(() => {
+    const hasRunning = currentExecutions.some(e => e.status === 'Em Execução')
+    if (!hasRunning) return
+
+    const increment = () => {
+      setCurrentExecutions(prev => 
+        prev.map(e => {
+          if (e.status === 'Em Execução') {
+            const nextDuration = e.durationSeconds + 1
+            const mins = Math.floor(nextDuration / 60)
+            const secs = nextDuration % 60
+            const tempoStr = mins > 0 ? `${mins}m ${secs}s` : `${secs}s`
+            
+            return {
+              ...e,
+              durationSeconds: nextDuration,
+              tempo: tempoStr
+            }
+          }
+          return e
+        })
+      )
+    }
+
+    const intervalId = setInterval(increment, 1000)
+    return () => clearInterval(intervalId)
+  }, [currentExecutions])
+
+  if (!currentExecutions || currentExecutions.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center text-sm text-muted-foreground min-h-[300px] gap-2">
         <Activity className="h-8 w-8 text-muted-foreground/30 animate-pulse" />
@@ -29,7 +87,7 @@ export default function ProcessChart({ executions }: ProcessChartProps) {
   }
 
   // Pegar as últimas 15 execuções e ordenar cronologicamente (da mais antiga para a mais recente)
-  const chartData = [...executions]
+  const chartData = [...currentExecutions]
     .slice(0, 15)
     .reverse()
     .map(e => {
