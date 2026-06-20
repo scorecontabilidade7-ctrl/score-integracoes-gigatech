@@ -31,7 +31,7 @@ tasks:
     tasks:
       - id: clone_repo
         type: io.kestra.plugin.git.Clone
-        url: "https://github.com/SEU_USUARIO/SEU_REPOSITORIO.git" # <-- SUBSTITUA AQUI
+        url: "https://github.com/scorecontabilidade7-ctrl/score-integracoes-gigatech.git"
         branch: main
       
       - id: execute_python
