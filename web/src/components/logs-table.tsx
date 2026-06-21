@@ -34,6 +34,7 @@ import { KestraExecution } from "@/utils/kestra"
 
 interface LogsTableProps {
   initialExecutions: KestraExecution[]
+  systemId: string
 }
 
 interface LogEntry {
@@ -43,7 +44,7 @@ interface LogEntry {
   taskId: string
 }
 
-export default function LogsTable({ initialExecutions }: LogsTableProps) {
+export default function LogsTable({ initialExecutions, systemId }: LogsTableProps) {
   const [executions, setExecutions] = useState<KestraExecution[]>(initialExecutions)
   const [selectedExec, setSelectedExec] = useState<KestraExecution | null>(null)
   const [logs, setLogs] = useState<LogEntry[]>([])
@@ -74,7 +75,7 @@ export default function LogsTable({ initialExecutions }: LogsTableProps) {
 
     const pollExecutions = async () => {
       try {
-        const res = await fetchKestraExecutionsAction()
+        const res = await fetchKestraExecutionsAction(systemId)
         if (res.success && res.executions) {
           setExecutions(res.executions)
         }

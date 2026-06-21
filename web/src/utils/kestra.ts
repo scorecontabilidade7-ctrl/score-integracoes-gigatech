@@ -41,15 +41,22 @@ interface KestraRawExecution {
   }
 }
 
-export async function getKestraExecutions(): Promise<KestraExecution[]> {
+import { SYSTEMS } from '@/utils/systems'
+
+export async function getKestraExecutions(systemId: string = 'gigatech'): Promise<KestraExecution[]> {
+  const systemConfig = SYSTEMS[systemId]
+  if (!systemConfig) {
+    console.warn(`Sistema '${systemId}' não cadastrado no SYSTEMS.`)
+    return []
+  }
+
   const webhookUrl = process.env.KESTRA_WEBHOOK_URL || ''
   if (!webhookUrl) {
     console.warn("KESTRA_WEBHOOK_URL não configurado.")
     return []
   }
 
-  // Parse da URL do webhook para obter base URL, namespace e flowId
-  // Ex: https://www.kestra.scoreconsultoria.com.br/api/v1/main/executions/webhook/gigatech.automacoes/gigatech_to_supabase/GIGATECH_EXTRACT_KEY
+  // Parse da URL do webhook para obter a base URL do Kestra
   const match = webhookUrl.match(/^(https?:\/\/[^\/]+(?:\/[^\/]+)*)\/executions\/webhook\/([^\/]+)\/([^\/]+)/)
   if (!match) {
     console.warn("KESTRA_WEBHOOK_URL no formato inválido para parser:", webhookUrl)
@@ -57,10 +64,7 @@ export async function getKestraExecutions(): Promise<KestraExecution[]> {
   }
 
   const baseUrl = match[1]
-  const namespace = match[2]
-  const flowId = match[3]
-
-  const searchUrl = `${baseUrl}/executions/search?namespace=${namespace}&flowId=${flowId}&size=50`
+  const searchUrl = `${baseUrl}/executions/search?namespace=${systemConfig.namespace}&flowId=${systemConfig.flowId}&size=50`
 
   try {
     const headers: Record<string, string> = {
@@ -94,7 +98,7 @@ export async function getKestraExecutions(): Promise<KestraExecution[]> {
     // Buscar clientes ativos no Supabase para mapeamento de cliente_id -> nome_loja
     const supabase = await createClient()
     const { data: clientes } = await supabase
-      .from('gigatech_clientes_config')
+      .from(systemConfig.configTable)
       .select('id, nome_loja')
 
     const clientMap = new Map<string, string>()
@@ -169,7 +173,7 @@ export async function getKestraExecutions(): Promise<KestraExecution[]> {
         status: statusFormat,
         tempo: tempoStr,
         data: dataStr,
-        kestraUrl: `${uiBaseUrl}/executions/${namespace}/${flowId}/${exec.id}/logs`,
+        kestraUrl: `${uiBaseUrl}/executions/${systemConfig.namespace}/${systemConfig.flowId}/${exec.id}/logs`,
         originalState: rawState,
         durationSeconds
       }

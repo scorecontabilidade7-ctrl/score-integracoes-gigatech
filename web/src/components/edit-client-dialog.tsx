@@ -1,7 +1,7 @@
 'use client'
 
 import * as React from "react"
-import { Edit, Settings } from "lucide-react"
+import { Edit } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -15,21 +15,23 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { updateCliente } from "@/app/dashboard/clientes/actions"
+import { SYSTEMS } from "@/utils/systems"
 
 interface EditClientDialogProps {
-  cliente: {
-    id: string;
-    nome_loja: string;
-    email_login_giga: string;
-    senha_login_giga: string;
-    ativo: boolean;
-  }
+  cliente: any
+  systemId: string
 }
 
-export function EditClientDialog({ cliente }: EditClientDialogProps) {
+export function EditClientDialog({ cliente, systemId }: EditClientDialogProps) {
   const [open, setOpen] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  const systemConfig = SYSTEMS[systemId]
+  if (!systemConfig) return null
+
+  const emailVal = cliente[systemConfig.emailField] || ""
+  const senhaVal = cliente[systemConfig.passwordField] || ""
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -39,7 +41,7 @@ export function EditClientDialog({ cliente }: EditClientDialogProps) {
     const formData = new FormData(e.currentTarget)
     formData.append('id', cliente.id)
 
-    const result = await updateCliente(formData)
+    const result = await updateCliente(formData, systemId)
     
     if (result.error) {
       setError(result.error)
@@ -61,43 +63,43 @@ export function EditClientDialog({ cliente }: EditClientDialogProps) {
       />
       <DialogContent className="sm:max-w-[425px] font-ui border-border/50 shadow-xl bg-white/95 backdrop-blur-md">
         <DialogHeader>
-          <DialogTitle className="font-heading text-xl">Editar Cliente</DialogTitle>
+          <DialogTitle className="font-heading text-xl">Editar Cliente ({systemConfig.name})</DialogTitle>
           <DialogDescription>
-            Altere as informações ou modifique o status da loja.
+            Altere as credenciais ou modifique o status da clínica/loja.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor={`edit-nome-${cliente.id}`} className="font-bold text-slate-700">Nome da Loja</Label>
+            <Label htmlFor={`edit-nome-${cliente.id}`} className="font-bold text-slate-700">Nome da Loja / Clínica</Label>
             <Input
               id={`edit-nome-${cliente.id}`}
               name="nome"
-              placeholder="Ex: LF Store"
+              placeholder="Ex: Consultório Central"
               defaultValue={cliente.nome_loja}
               required
               className="bg-white"
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor={`edit-email-${cliente.id}`} className="font-bold text-slate-700">E-mail (Giga Tech)</Label>
+            <Label htmlFor={`edit-email-${cliente.id}`} className="font-bold text-slate-700">E-mail ({systemConfig.name})</Label>
             <Input
               id={`edit-email-${cliente.id}`}
               name="email"
               type="email"
-              placeholder="contato@loja.com"
-              defaultValue={cliente.email_login_giga}
+              placeholder="login@sistema.com"
+              defaultValue={emailVal}
               required
               className="bg-white font-data text-sm"
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor={`edit-senha-${cliente.id}`} className="font-bold text-slate-700">Senha (Giga Tech)</Label>
+            <Label htmlFor={`edit-senha-${cliente.id}`} className="font-bold text-slate-700">Senha ({systemConfig.name})</Label>
             <Input
               id={`edit-senha-${cliente.id}`}
               name="senha"
               type="text"
               placeholder="********"
-              defaultValue={cliente.senha_login_giga}
+              defaultValue={senhaVal}
               required
               className="bg-white font-data text-sm"
             />

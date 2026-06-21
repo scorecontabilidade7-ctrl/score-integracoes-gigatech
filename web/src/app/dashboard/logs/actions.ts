@@ -11,9 +11,9 @@ export async function fetchKestraLogsAction(executionId: string) {
   }
 }
 
-export async function fetchKestraExecutionsAction() {
+export async function fetchKestraExecutionsAction(systemId: string = 'gigatech') {
   try {
-    const executions = await getKestraExecutions()
+    const executions = await getKestraExecutions(systemId)
     return { success: true, executions }
   } catch (err: any) {
     return { success: false, error: err.message || 'Erro ao carregar execuções' }

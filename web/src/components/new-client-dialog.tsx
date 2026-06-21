@@ -15,11 +15,18 @@ import {
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { createCliente } from "@/app/dashboard/clientes/actions"
+import { SYSTEMS } from "@/utils/systems"
 
-export function NewClientDialog() {
+interface NewClientDialogProps {
+  systemId: string
+}
+
+export function NewClientDialog({ systemId }: NewClientDialogProps) {
   const [open, setOpen] = React.useState(false)
   const [loading, setLoading] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
+
+  const systemConfig = SYSTEMS[systemId]
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault()
@@ -27,7 +34,7 @@ export function NewClientDialog() {
     setError(null)
     
     const formData = new FormData(e.currentTarget)
-    const result = await createCliente(formData)
+    const result = await createCliente(formData, systemId)
     
     if (result.error) {
       setError(result.error)
@@ -49,35 +56,34 @@ export function NewClientDialog() {
       />
       <DialogContent className="sm:max-w-[425px] font-ui border-border/50 shadow-xl bg-white/95 backdrop-blur-md">
         <DialogHeader>
-          <DialogTitle className="font-heading text-xl">Cadastrar Novo Cliente</DialogTitle>
+          <DialogTitle className="font-heading text-xl">Cadastrar Cliente ({systemConfig?.name})</DialogTitle>
           <DialogDescription>
-            Insira os dados da nova loja. O e-mail cadastrado será usado para controle de acesso.
+            Insira as credenciais do novo cliente para a automação do {systemConfig?.name}.
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="grid gap-4 py-4">
           <div className="grid gap-2">
-            <Label htmlFor="nome" className="font-bold text-slate-700">Nome da Loja</Label>
+            <Label htmlFor="nome" className="font-bold text-slate-700">Nome da Loja / Clínica</Label>
             <Input
               id="nome"
               name="nome"
-              placeholder="Ex: LF Store"
+              placeholder="Ex: Consultório Central"
               required
               className="bg-white"
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="email" className="font-bold text-slate-700">E-mail (Giga Tech)</Label>
+            <Label htmlFor="email" className="font-bold text-slate-700">E-mail ({systemConfig?.name})</Label>
             <Input
               id="email"
               name="email"
-              type="email"
-              placeholder="contato@loja.com"
+              placeholder="login@sistema.com"
               required
               className="bg-white font-data text-sm"
             />
           </div>
           <div className="grid gap-2">
-            <Label htmlFor="senha" className="font-bold text-slate-700">Senha (Giga Tech)</Label>
+            <Label htmlFor="senha" className="font-bold text-slate-700">Senha ({systemConfig?.name})</Label>
             <Input
               id="senha"
               name="senha"

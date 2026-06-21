@@ -28,9 +28,10 @@ import { Label } from "@/components/ui/label"
 interface TriggerWebhookDialogProps {
   clienteId: string
   clienteNome: string
+  systemId: string
 }
 
-export function TriggerWebhookDialog({ clienteId, clienteNome }: TriggerWebhookDialogProps) {
+export function TriggerWebhookDialog({ clienteId, clienteNome, systemId }: TriggerWebhookDialogProps) {
   const [open, setOpen] = React.useState(false)
   const [date, setDate] = React.useState<DateRange | undefined>()
   const [loading, setLoading] = React.useState(false)
@@ -67,7 +68,8 @@ export function TriggerWebhookDialog({ clienteId, clienteNome }: TriggerWebhookD
       const res = await triggerKestraFlow(
         clienteId,
         format(date.from, "dd/MM/yyyy"),
-        format(date.to, "dd/MM/yyyy")
+        format(date.to, "dd/MM/yyyy"),
+        systemId
       )
 
       if (res?.error) {

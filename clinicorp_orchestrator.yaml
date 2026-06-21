@@ -1,0 +1,52 @@
+id: clinicorp_to_supabase
+namespace: clinicorp.automacoes
+description: Orquestrador Multi-tenant da Clinicorp (V2)
+
+inputs:
+  - id: data_inicial
+    type: STRING
+    required: false
+    description: "Formato: dd/mm/yyyy. Deixe vazio para usar a data de hoje."
+  - id: data_final
+    type: STRING
+    required: false
+    description: "Formato: dd/mm/yyyy. Deixe vazio para usar a data de hoje."
+  - id: cliente_id
+    type: STRING
+    required: true
+    description: "ID do cliente. Use TODOS para rodar a base inteira."
+    defaults: "TODOS"
+
+triggers:
+  - id: hourly_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "0 7-20 * * 1-6" # De segunda a sábado, a cada 1 hora das 07:00 às 20:00
+  - id: webhook_trigger
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: "CLINICORP_EXTRACT_KEY"
+
+tasks:
+  - id: working_dir
+    type: io.kestra.plugin.core.flow.WorkingDirectory
+    tasks:
+      - id: clone_repo
+        type: io.kestra.plugin.git.Clone
+        url: "https://github.com/scorecontabilidade7-ctrl/score-integracoes-gigatech.git"
+        branch: main
+      
+      - id: execute_python
+        type: io.kestra.plugin.scripts.python.Script
+        containerImage: mcr.microsoft.com/playwright/python:v1.44.0-jammy
+        env:
+          SUPABASE_URL: "{{ kv('SUPABASE_URL') }}"
+          SUPABASE_KEY: "{{ kv('SUPABASE_KEY') }}"
+          KESTRA_DATA_INICIAL: "{{ trigger.body.data_inicial ?? inputs.data_inicial ?? '' }}"
+          KESTRA_DATA_FINAL: "{{ trigger.body.data_final ?? inputs.data_final ?? '' }}"
+          KESTRA_CLIENTE_ID: "{{ trigger.body.cliente_id ?? inputs.cliente_id ?? 'TODOS' }}"
+        beforeCommands:
+          - pip install --no-cache-dir -r requirements.txt
+        script: |
+          import sys
+          import subprocess
+          print("Iniciando Orquestrador Clinicorp V2...")
+          subprocess.check_call([sys.executable, "worker_clinicorp/main.py"])

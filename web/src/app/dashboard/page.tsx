@@ -1,106 +1,105 @@
+import Link from 'next/link'
+import { Database, Activity, LayoutDashboard, LogOut } from 'lucide-react'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
+import { Button } from '@/components/ui/button'
 import { createClient } from '@/utils/supabase/server'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Users, ShoppingCart, Package, UsersRound, AlertCircle } from 'lucide-react'
-import { getKestraExecutions } from '@/utils/kestra'
-import ProcessChart from '@/components/process-chart'
-import RefreshButton from '@/components/refresh-button'
+import { SYSTEMS } from '@/utils/systems'
 
-export const dynamic = 'force-dynamic' // Garante que a página sempre busque dados novos
+export const dynamic = 'force-dynamic'
 
-export default async function DashboardOverview() {
+export default async function DashboardSelector() {
   const supabase = await createClient()
 
-  // Buscar totais das tabelas e as execuções do Kestra
-  const isKestraConfigured = !!process.env.KESTRA_WEBHOOK_URL
-  
-  const [
-    { count: totalClientes }, 
-    { count: totalVendas }, 
-    { count: totalEstoque }, 
-    { count: totalVendedores },
-    executions
-  ] = await Promise.all([
-    supabase.from('gigatech_clientes_config').select('*', { count: 'exact', head: true }).eq('ativo', true),
-    supabase.from('gigatech_vendas').select('*', { count: 'exact', head: true }),
-    supabase.from('gigatech_estoque').select('*', { count: 'exact', head: true }),
-    supabase.from('gigatech_vendedores').select('*', { count: 'exact', head: true }),
-    isKestraConfigured ? getKestraExecutions() : Promise.resolve([])
-  ])
+  // Buscar contagem de clientes ativos para cada sistema para exibir nos cartões
+  const counts = await Promise.all(
+    Object.values(SYSTEMS).map(async (sys) => {
+      const { count } = await supabase
+        .from(sys.configTable)
+        .select('*', { count: 'exact', head: true })
+        .eq('ativo', true)
+      return { id: sys.id, count: count || 0 }
+    })
+  )
+
+  const countMap = new Map(counts.map((c) => [c.id, c.count]))
+
+  const icons = {
+    database: Database,
+    activity: Activity,
+  }
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center gap-4">
-        <div className="flex flex-col gap-1">
-          <h2 className="text-2xl font-bold tracking-tight">Overview</h2>
-          <p className="text-muted-foreground text-sm">Acompanhe o volume de processamento do robô da Giga Tech.</p>
+    <div className="min-h-screen bg-[#F9FAFB] flex flex-col font-ui">
+      {/* Top bar simplificada no portal */}
+      <header className="w-full h-20 flex items-center justify-between px-6 md:px-12 border-b border-slate-100 bg-white">
+        <img 
+          src="https://lunsyufvxkiivnrhpxpj.supabase.co/storage/v1/object/public/utils/logo_completa.png" 
+          alt="Score Logo" 
+          className="h-11 object-contain"
+        />
+        <form action="/api/auth/signout" method="POST">
+          <Button 
+            variant="outline" 
+            className="h-10 rounded-full border-red-200 text-red-500 hover:bg-red-50 hover:text-red-600 gap-2 px-4 text-xs font-bold tracking-wider"
+          >
+            <LogOut className="h-4 w-4" />
+            SAIR
+          </Button>
+        </form>
+      </header>
+
+      {/* Main Content */}
+      <main className="flex-1 flex flex-col items-center justify-center p-6 md:p-12 max-w-5xl mx-auto w-full">
+        <div className="text-center space-y-3 mb-12">
+          <div className="inline-flex p-3 rounded-2xl bg-slate-100 text-slate-800 mb-2">
+            <LayoutDashboard className="h-6 w-6" />
+          </div>
+          <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-900 font-heading">
+            Portal de Integrações
+          </h1>
+          <p className="text-slate-500 max-w-md mx-auto text-sm md:text-base">
+            Selecione qual sistema de automação e sincronização você deseja monitorar e configurar neste momento.
+          </p>
         </div>
-        <RefreshButton />
-      </div>
 
+        {/* Grid de Cartões */}
+        <div className="grid gap-6 md:grid-cols-2 w-full">
+          {Object.values(SYSTEMS).map((sys) => {
+            const IconComponent = icons[sys.iconName] || Database
+            const activeClients = countMap.get(sys.id) || 0
 
-      <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
-        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Clientes Ativos</CardTitle>
-            <Users className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-data">{totalClientes || 0}</div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Vendas Processadas</CardTitle>
-            <ShoppingCart className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-data">{totalVendas?.toLocaleString('pt-BR') || 0}</div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Registros de Estoque</CardTitle>
-            <Package className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-data">{totalEstoque?.toLocaleString('pt-BR') || 0}</div>
-          </CardContent>
-        </Card>
-        
-        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Vendas por Vendedores</CardTitle>
-            <UsersRound className="h-4 w-4 text-primary" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold font-data">{totalVendedores?.toLocaleString('pt-BR') || 0}</div>
-          </CardContent>
-        </Card>
-      </div>
-
-      <div className="grid gap-4 md:grid-cols-1">
-        <Card className="border-0 shadow-sm shadow-black/5 rounded-2xl bg-white min-h-[400px]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-semibold">Tempos de Processamento</CardTitle>
-            <p className="text-xs text-muted-foreground">
-              Duração e status das últimas execuções de sincronização do robô.
-            </p>
-          </CardHeader>
-          <CardContent className="min-h-[300px] flex items-center justify-center pt-4">
-            {!isKestraConfigured ? (
-              <div className="flex items-center gap-2 text-sm text-rose-500 font-mono">
-                <AlertCircle className="h-4 w-4" />
-                <span>Kestra não configurado no servidor.</span>
-              </div>
-            ) : (
-              <ProcessChart executions={executions} />
-            )}
-          </CardContent>
-        </Card>
-      </div>
+            return (
+              <Link key={sys.id} href={`/dashboard/${sys.id}`} className="group block h-full">
+                <Card className="border-0 shadow-sm shadow-black/5 hover:shadow-md hover:shadow-black/[0.08] hover:-translate-y-1 transition-all duration-300 rounded-3xl bg-white p-4 h-full border border-transparent hover:border-slate-100 flex flex-col justify-between">
+                  <div>
+                    <CardHeader className="flex flex-row items-center justify-between pb-4 space-y-0">
+                      <div className="inline-flex p-4 rounded-2xl bg-slate-50 text-slate-600 group-hover:bg-slate-900 group-hover:text-white transition-colors duration-300">
+                        <IconComponent className="h-6 w-6" />
+                      </div>
+                      <span className="text-xs font-bold font-data text-emerald-600 bg-emerald-50 border border-emerald-100 px-3 py-1 rounded-full">
+                        {activeClients} {activeClients === 1 ? 'cliente ativo' : 'clientes ativos'}
+                      </span>
+                    </CardHeader>
+                    <CardContent className="space-y-2">
+                      <CardTitle className="text-xl font-bold font-heading text-slate-900 group-hover:text-primary transition-colors">
+                        {sys.name}
+                      </CardTitle>
+                      <CardDescription className="text-slate-500 text-sm leading-relaxed">
+                        {sys.description}
+                      </CardDescription>
+                    </CardContent>
+                  </div>
+                  <div className="px-6 pb-4 pt-6">
+                    <Button className="w-full rounded-2xl font-bold text-xs tracking-wider uppercase bg-slate-100 text-slate-800 group-hover:bg-slate-900 group-hover:text-white transition-all shadow-none">
+                      Acessar Painel
+                    </Button>
+                  </div>
+                </Card>
+              </Link>
+            )
+          })}
+        </div>
+      </main>
     </div>
   )
 }
-
