@@ -1,102 +1,108 @@
-# 🚀 Giga Tech Multi-tenant (V2.0)
+# 🚀 Plataforma de Automação Multi-Sistemas (V2.1)
 
-Sistema robusto de automação de relatórios, orquestração e gerenciamento de múltiplos clientes (Multi-tenant). O projeto integra o ERP **Giga Tech**, processamento de dados em **Python**, banco de dados **Supabase**, agendamento automatizado no **Kestra** e um **Dashboard Web** administrativo construído em **Next.js 15**.
+Sistema robusto de automação de relatórios, orquestração e gerenciamento de múltiplos clientes (Multi-tenant). O projeto evoluiu para uma plataforma genérica que gerencia e monitora múltiplos fluxos de sincronização, integrando atualmente o ERP **Giga Tech** e o sistema odontológico **Clinicorp**. 
+
+A infraestrutura é composta por processadores de dados em **Python**, banco de dados **Supabase**, agendadores automatizados no **Kestra** e um **Dashboard Web** administrativo construído em **Next.js 15**.
 
 ---
 
 ## 🗺️ Mapa de Arquitetura e Fluxo de Dados
 
-Abaixo está ilustrado como os dados trafegam pelo ecossistema, desde o agendamento no Kestra ou ação na UI até a gravação final otimizada no banco de dados.
+Abaixo está ilustrado como os dados trafegam pelo ecossistema de forma dinâmica para múltiplos ERPs:
 
 ```mermaid
 graph TD
-    subgraph UI ["UI & Gestão"]
-        Web["💻 Dashboard Next.js 15"] -- "Gerencia Credenciais & Status" --> DB_Config[("gigatech_clientes_config")]
-        Web -- "Dispara retroativos via Webhook" --> Kestra["⚙️ Orquestrador Kestra"]
+    subgraph UI ["Painel Administrativo (Next.js 15)"]
+        Portal["💻 Portal de Seleção (/dashboard)"] --> SystemDash["📈 Dashboard por ERP (/dashboard/[system])"]
+        SystemDash -- "Config. de Lojas/Clínicas" --> ConfigTable[("Tabelas de Configuração (_clientes_config)")]
+        SystemDash -- "Dispara retroativos" --> Kestra["⚙️ Orquestrador Kestra"]
+      end
+
+    subgraph Proc ["Processamento (Python Workers)"]
+        Kestra -- "Executa Fluxo Giga Tech" --> WorkerGiga["🤖 Worker Giga Tech"]
+        Kestra -- "Executa Fluxo Clinicorp" --> WorkerClini["🤖 Worker Clinicorp"]
+        
+        WorkerGiga -- "Downloads Locais" --> TempGiga["📁 downloads_gigatech/"]
+        WorkerClini -- "Bypass Readonly + Downloads" --> TempClini["📁 downloads_clinicorp/"]
+        
+        TempGiga -- "Pandas / Parsing" --> DB_StagingGiga[("Tabelas Giga Tech (gigatech_*)")]
+        TempClini -- "Pandas / Parsing" --> DB_StagingClini[("Tabelas Clinicorp (clinicorp_*)")]
     end
 
-    subgraph Proc ["Processamento (Worker Python)"]
-        Kestra -- "Executa Script Python" --> Worker["🤖 Worker Giga Tech"]
-        Worker -- "1. Lê Clientes Ativos" --> DB_Config
-        Worker -- "2. Playwright Headless Scraper" --> ERP["🖥️ Giga Tech ERP Web"]
-        ERP -- "Download Relatórios (.xls, .pdf)" --> TempFiles["📁 Downloads Temporários"]
-        TempFiles -- "3. Tratamento & Mapeamento" --> Pandas["🐼 Pandas / PDFPlumber"]
-        Pandas -- "4. Batch Ingest & Idempotência" --> DB_Staging[("Supabase Staging Tables")]
-    end
-
-    subgraph Store ["Armazenamento (Supabase)"]
-        DB_Staging -- "Vendas Detalhadas" --> Vendas[("gigatech_vendas")]
-        DB_Staging -- "Vendedores por Cupom" --> Vendedores[("gigatech_vendedores")]
-        DB_Staging -- "Novos Clientes Cadastrados" --> Clientes[("gigatech_clientes_novos")]
-        DB_Staging -- "Custo de Estoque" --> Estoque[("gigatech_estoque")]
+    subgraph Store ["Banco de Dados (Supabase)"]
+        DB_StagingGiga
+        DB_StagingClini
     end
 ```
-
----
-
-## 💎 Principais Características
-
-> [!TIP]
-> **Fim do Supabase Storage**: A arquitetura 2.0 elimina totalmente o uso de Buckets. Os relatórios baixados pelo Playwright são processados diretamente na memória do container local e inseridos no banco.
-
-* **Multi-tenant Nativo**: Suporte para ilimitados clientes na mesma estrutura. Todos os dados brutos possuem vinculação com a chave `cliente_id` associada à tabela `gigatech_clientes_config`.
-* **Idempotência Garantida**: A re-execução do fluxo para qualquer período retroativo é 100% segura. O script executa o método `clean_period_data()` limpando os dados preexistentes daquele intervalo de datas antes de inserir o novo bloco.
-* **Resiliência de Layouts**: O processador de dados mapeia e suporta variações dinâmicas de colunas feitas pelo ERP (como `EAN`, `Cod.Barra`, `Cód Barra`).
-* **Kestra Integration (D-1 Automático)**: Caso execute no agendador diário sem parâmetros explícitos, o worker calcula e processa as informações retroativas de ontem (D-1) automaticamente.
-* **Painel Administrativo Premium**: Interface web moderna que centraliza o controle de credenciais dos clientes, exibição das últimas execuções de logs e modal flutuante para disparo retroativo individual.
 
 ---
 
 ## 📁 Estrutura do Projeto
 
-O repositório é composto por dois ecossistemas principais:
-
 ```
-├── worker_gigatech/           # 🐍 Automação e Processamento (Python)
-│   ├── main.py                # Orquestrador local, loop de clientes e fluxo D-1
-│   ├── scraper.py             # Automação Playwright para login e download de relatórios
-│   ├── processor.py           # Tratamento, limpeza e parsing de XLS/PDF via Pandas
-│   ├── database.py            # Operações no Supabase, insert em batch e idempotência
-│   └── tmp_downloads/         # Diretório temporário para arquivos locais
+├── worker_gigatech/           # 🐍 Automação e Processamento (Giga Tech)
+│   ├── main.py                # Orquestrador do robô da Giga Tech
+│   ├── scraper.py             # Playwright para login e download de relatórios
+│   ├── processor.py           # Parsing de XLS/PDF via Pandas
+│   ├── database.py            # Operações no Supabase e idempotência
+│   └── tmp_downloads/
 │
-├── web/                       # 🌐 Dashboard Administrativo (Next.js 15)
+├── worker_clinicorp/          # 🐍 [NOVO] Automação e Processamento (Clinicorp)
+│   ├── main.py                # Orquestrador do robô da Clinicorp
+│   ├── scraper.py             # Playwright (Bypass de datas readonly via JS)
+│   ├── processor.py           # Parsing de XLS e regras de faturamento/valores
+│   ├── database.py            # Conexão, batch insert e idempotência
+│   └── tmp_downloads/
+│
+├── web/                       # 🌐 Dashboard Administrativo Unificado (Next.js 15)
 │   ├── src/
-│   │   ├── app/               # Roteamento e telas (Dashboard, Clientes, Logs)
-│   │   ├── components/        # Componentes UI (Tabelas, Sidebar, Modais)
-│   │   └── utils/             # Conexão e integração com Supabase Client/Server
+│   │   ├── app/
+│   │   │   ├── dashboard/
+│   │   │   │   ├── page.tsx   # Portal central de seleção de sistemas
+│   │   │   │   └── [system]/  # Dashboard, logs e CRUD dinâmicos por ERP
+│   │   │   └── login/
+│   │   ├── components/        # Componentes genéricos de CRUD e Console
+│   │   └── utils/
+│   │       ├── systems.ts     # Configuração e mapeamento estático de ERPs
+│   │       └── kestra.ts      # Conexão com API do Kestra e logs em tempo real
 │   └── package.json
 │
-├── gigatech_orchestrator.yaml # ⚙️ Definição da orquestração no Kestra
+├── gigatech_orchestrator.yaml # ⚙️ Fluxo Kestra da Giga Tech
+├── clinicorp_orchestrator.yaml# ⚙️ [NOVO] Fluxo Kestra da Clinicorp
 ├── requirements.txt           # Dependências do ambiente Python
-└── agent.md                   # Histórico de desenvolvimento e documentação técnica do agente
+└── agent.md                   # Histórico de desenvolvimento do agente
 ```
 
 ---
 
 ## 🛠️ Configuração e Instalação
 
-### 1. Requisitos Pró-ativos
+### 1. Requisitos
 * **Python 3.10+** (Recomendado `.venv`)
 * **Node.js 18+**
-* Projeto no **Supabase** ativo com as tabelas `gigatech_*` criadas.
+* Projeto no **Supabase** ativo com as tabelas criadas.
 
-### 2. Configurando as Variáveis de Ambiente (`.env`)
-Copie o arquivo `.env.example` e crie um arquivo `.env` na raiz do projeto (e também em `web/.env.local` para a interface Next.js):
+### 2. Variáveis de Ambiente (`.env`)
+Copie o arquivo `.env.example` e crie um arquivo `.env` na raiz do projeto (e também em `web/.env.local` para o Next.js):
 
 ```env
 # Conexão Supabase
 SUPABASE_URL="sua-url-do-supabase"
-SUPABASE_KEY="seu-token-key-do-supabase"
+SUPABASE_KEY="sua-chave-anon-ou-service-role"
 
-# Webhook do Kestra (para disparos retroativos)
+# Webhook do Kestra (Necessário para a interface disparar retroativos)
 KESTRA_WEBHOOK_URL="sua-url-do-webhook-kestra"
+
+# Autenticação do Kestra (Preencha uma delas se aplicável)
+KESTRA_BASIC_AUTH="usuario:senha"
+KESTRA_API_TOKEN=""
 ```
 
 ---
 
 ## 🚀 Como Executar
 
-### 🐍 Rodando o Worker Python (Automação)
+### 🐍 Rodando os Workers Python (Automação)
 
 1. Crie e ative o ambiente virtual:
    ```bash
@@ -109,17 +115,22 @@ KESTRA_WEBHOOK_URL="sua-url-do-webhook-kestra"
    pip install -r requirements.txt
    playwright install chromium
    ```
-3. Execute o robô:
-   * **Execução Geral (Todos os clientes ativos - Ontem D-1):**
+3. Execute o robô correspondente:
+   * **Giga Tech (Geral - Ontem D-1):**
      ```bash
      python -m worker_gigatech.main
      ```
-   * **Execução Retroativa Individual (Passando parâmetros):**
+   * **Clinicorp (Geral - Hoje D-0):**
      ```bash
+     python -m worker_clinicorp.main
+     ```
+   * **Execução Retroativa Individual (Exemplo Clinicorp):**
+     ```powershell
+     # No Windows (PowerShell)
      $env:KESTRA_CLIENTE_ID="uuid-do-cliente"
-     $env:DATA_INICIAL="2026-06-01"
-     $env:DATA_FINAL="2026-06-15"
-     python -m worker_gigatech.main
+     $env:KESTRA_DATA_INICIAL="01/06/2026"
+     $env:KESTRA_DATA_FINAL="21/06/2026"
+     python -m worker_clinicorp.main
      ```
 
 ### 💻 Rodando o Dashboard Web (Interface)
@@ -128,7 +139,7 @@ KESTRA_WEBHOOK_URL="sua-url-do-webhook-kestra"
    ```bash
    cd web
    ```
-2. Instale as dependências NPM:
+2. Instale as dependências:
    ```bash
    npm install
    ```
@@ -142,13 +153,19 @@ KESTRA_WEBHOOK_URL="sua-url-do-webhook-kestra"
 
 ## 🗄️ Tabelas do Supabase (Modelo de Dados)
 
-> [!IMPORTANT]
-> Todas as tabelas de dados brutos estão indexadas nas colunas `cliente_id` e `data_venda` (ou `data_cadastro`) para consultas velozes no Dashboard.
+### Tabelas Giga Tech
+| Tabela | Função |
+| :--- | :--- |
+| **`gigatech_clientes_config`** | Credenciais & Status dos clientes Giga |
+| **`gigatech_vendas`** | Relatório de Vendas Detalhadas |
+| **`gigatech_vendedores`** | Relatório de Vendedores vinculados |
+| **`gigatech_clientes_novos`**| Clientes Novos Cadastrados no período |
+| **`gigatech_estoque`** | Custo e Quantidade de Estoque |
 
-| Tabela | Função | Colunas Principais |
-| :--- | :--- | :--- |
-| **`gigatech_clientes_config`** | Configurações & Login | `id` (UUID), `nome_loja`, `email_login_giga`, `senha_login_giga`, `ativo` (Bool) |
-| **`gigatech_vendas`** | Relatório de Vendas | `cliente_id` (FK), `data_venda`, `n_cupom`, `produto`, `ean`, `quantidade`, `valor_venda` |
-| **`gigatech_vendedores`** | Vendedores vinculados | `cliente_id` (FK), `data_venda`, `n_cupom`, `nome_vendedor`, `nome_cliente` |
-| **`gigatech_clientes_novos`**| Clientes Novos | `cliente_id` (FK), `nome_cliente`, `data_cadastro` |
-| **`gigatech_estoque`** | Custo e Quantidade | `cliente_id` (FK), `ean`, `produto`, `quantidade`, `valor_venda`, `custo` |
+### Tabelas Clinicorp
+| Tabela | Função |
+| :--- | :--- |
+| **`clinicorp_clientes_config`** | Credenciais & Status das Clínicas |
+| **`clinicorp_faturamento_profissional`** | Resumo de faturamento por dentista/profissional |
+| **`clinicorp_orcamentos`** | Listagem detalhada de orçamentos e procedimentos |
+| **`clinicorp_primeiras_consultas`** | Agendamentos de novos pacientes captados |
