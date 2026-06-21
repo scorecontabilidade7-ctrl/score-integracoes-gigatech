@@ -168,11 +168,13 @@ def process_clientes_novos(file_path: str, cliente_id: str):
             linha = linha.strip()
             if not linha: continue
 
-            # Regex para ignorar cabeçalhos
-            if re.search(r'GIGA TECH|RELATÓRIO DE CLIENTE|Código|TOTAL DE CLIENTES', linha, re.IGNORECASE):
+            # Regex para ignorar cabeçalhos e rodapés
+            if re.search(r'GIGA TECH|RELATÓRIO DE CLIENTE|Código|TOTAL DE CLIENTES|Nome Documento E-Mail Cadastro', linha, re.IGNORECASE):
+                continue
+            if linha.startswith("de ") or "Cep:" in linha or "Complemento:" in linha or "Período" in linha or "Até" in linha:
                 continue
                 
-            match = re.search(r'^\d+\s+(.*?)(?=\s+(?:SIM|NÃO|\d{2}/\d{2}/\d{4}))', linha)
+            match = re.search(r'^([A-ZÀ-Úa-z0-9\s\.\-\/&]+?)(?=\s+(?:\d{11,14}|\S+@\S+|\d{2}/\d{2}/\d{4}))', linha)
             match_data = re.search(r'(\d{2}/\d{2}/\d{4})', linha)
             
             if match and match_data:

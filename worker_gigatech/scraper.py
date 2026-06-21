@@ -180,7 +180,7 @@ def extrair_dados(cliente_config, data_inicial, data_final):
             # CLIENTES NOVOS PDF
             print("[SCRAPER] Baixando Clientes Novos PDF")
             safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios_cliente_periodo"]/a/span'))
-            # fill_dates(page, data_inicial, data_final) # a interface as vezes nao tem
+            fill_dates(page, "frmRelatorio", data_inicial, data_final)
             pdf_btn_cli = first_visible(page, ['xpath=//*[@id="frmRelatorio:j_idt130"]', 'xpath=//button[contains(.,"Imprimir")]'])
             arquivos["clientes_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn_cli, f"clientes_{cliente_id}.pdf")
 
