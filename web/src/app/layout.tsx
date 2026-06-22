@@ -7,7 +7,7 @@ const fontDMSans = DM_Sans({ subsets: ["latin"], variable: "--font-dm-sans" });
 const fontJetBrains = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono" });
 
 export const metadata: Metadata = {
-  title: "Score | Giga Tech Automations",
+  title: "Score | Automations",
   description: "Orquestrador Multi-tenant da Score Contabilidade",
   icons: {
     icon: "https://lunsyufvxkiivnrhpxpj.supabase.co/storage/v1/object/public/utils/favicon.png",

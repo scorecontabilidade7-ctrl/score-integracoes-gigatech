@@ -72,7 +72,7 @@ export default async function LoginPage({
         </Card>
         
         <p className="text-center text-sm text-muted-foreground">
-          Giga Tech Multi-tenant Orchestrator v2.0
+          Score Multi-tenant Orchestrator v2.0
         </p>
       </div>
     </div>

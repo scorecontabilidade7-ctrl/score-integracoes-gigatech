@@ -137,55 +137,65 @@ def extrair_dados(cliente_config, data_inicial, data_final):
 
         try:
             login(page, url, user, pwd)
-            
-            # VENDAS EXCEL
-            print("[SCRAPER] Baixando Vendas Excel")
-            page.goto(page.url, wait_until="domcontentloaded")
-            safe_click(page.locator('xpath=//*[@id="menuform:um_venda"]/a'))
-            safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios"]/a'))
-            safe_click(page.locator('xpath=//*[@id="menuform:um_rfrm_rel_venda_detalhada_novo"]/a'))
-            fill_dates(page, "frmVenda", data_inicial, data_final)
-            page.wait_for_timeout(1000)
-            btn = first_visible(page, [
-                'xpath=//form[contains(@id,"frmVenda")]//button[not(contains(@class,"ui-splitbutton-menubutton")) and .//span[contains(normalize-space(.),"Exportar Xlsx")]]',
-                'xpath=//button[.//span[normalize-space()="Exportar Xlsx"] and not(contains(@class, "ui-splitbutton-menubutton"))]'
-            ])
-            with page.expect_download(timeout=270000) as d:
-                btn.click(timeout=30000, force=True)
-            vendas_path = TMP_DIR / f"vendas_{cliente_id}.xls"
-            shutil.copy(d.value.path(), vendas_path)
-            arquivos["vendas_excel"] = str(vendas_path)
+                    # VENDAS EXCEL
+            try:
+                print("[SCRAPER] Baixando Vendas Excel")
+                page.goto(page.url, wait_until="domcontentloaded")
+                safe_click(page.locator('xpath=//*[@id="menuform:um_venda"]/a'))
+                safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios"]/a'))
+                safe_click(page.locator('xpath=//*[@id="menuform:um_rfrm_rel_venda_detalhada_novo"]/a'))
+                fill_dates(page, "frmVenda", data_inicial, data_final)
+                page.wait_for_timeout(1000)
+                btn = first_visible(page, [
+                    'xpath=//form[contains(@id,"frmVenda")]//button[not(contains(@class,"ui-splitbutton-menubutton")) and .//span[contains(normalize-space(.),"Exportar Xlsx")]]',
+                    'xpath=//button[.//span[normalize-space()="Exportar Xlsx"] and not(contains(@class, "ui-splitbutton-menubutton"))]'
+                ])
+                with page.expect_download(timeout=270000) as d:
+                    btn.click(timeout=30000, force=True)
+                vendas_path = TMP_DIR / f"vendas_{cliente_id}.xls"
+                shutil.copy(d.value.path(), vendas_path)
+                arquivos["vendas_excel"] = str(vendas_path)
+            except Exception as e:
+                print(f"[ERRO SCRAPER VENDAS] {e}")
  
             # VENDEDOR PDF
-            print("[SCRAPER] Baixando Vendas Vendedor PDF")
-            safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios9"]/a'))
-            fill_dates(page, "frmTitulo", data_inicial, data_final)
-            pdf_btn = first_visible(page, ['xpath=//*[@id="frmTitulo:j_idt142"]', 'xpath=//button[contains(.,"Imprimir")]'])
-            arquivos["vendedores_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn, f"vendedores_{cliente_id}.pdf")
+            try:
+                print("[SCRAPER] Baixando Vendas Vendedor PDF")
+                safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios9"]/a'))
+                fill_dates(page, "frmTitulo", data_inicial, data_final)
+                pdf_btn = first_visible(page, ['xpath=//*[@id="frmTitulo:j_idt142"]', 'xpath=//button[contains(.,"Imprimir")]'])
+                arquivos["vendedores_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn, f"vendedores_{cliente_id}.pdf")
+            except Exception as e:
+                print(f"[ERRO SCRAPER VENDEDOR PDF] {e}")
  
             # ESTOQUE EXCEL
-            print("[SCRAPER] Baixando Custo Estoque Excel")
-            page.goto(page.url, wait_until="domcontentloaded")
-            safe_click(page.locator('xpath=//*[@id="menuform:themes"]/a'))
-            safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios_Base"]/a'))
-            safe_click(page.locator('xpath=//*[@id="menuform:frm_rel_custo_estoque"]/a'))
-            page.wait_for_timeout(1000)
-            btn_est = page.locator('xpath=//button[.//span[normalize-space()="Exportar"]]')
-            with page.expect_download(timeout=150000) as d:
-                safe_click(btn_est)
-            estoque_path = TMP_DIR / f"estoque_{cliente_id}.xlsx"
-            shutil.copy(d.value.path(), estoque_path)
-            arquivos["estoque_excel"] = str(estoque_path)
-
+            try:
+                print("[SCRAPER] Baixando Custo Estoque Excel")
+                page.goto(page.url, wait_until="domcontentloaded")
+                safe_click(page.locator('xpath=//*[@id="menuform:themes"]/a'))
+                safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios_Base"]/a'))
+                safe_click(page.locator('xpath=//*[@id="menuform:frm_rel_custo_estoque"]/a'))
+                page.wait_for_timeout(1000)
+                btn_est = page.locator('xpath=//button[.//span[normalize-space()="Exportar"]]')
+                with page.expect_download(timeout=150000) as d:
+                    safe_click(btn_est)
+                estoque_path = TMP_DIR / f"estoque_{cliente_id}.xlsx"
+                shutil.copy(d.value.path(), estoque_path)
+                arquivos["estoque_excel"] = str(estoque_path)
+            except Exception as e:
+                print(f"[ERRO SCRAPER ESTOQUE] {e}")
+ 
             # CLIENTES NOVOS PDF
-            print("[SCRAPER] Baixando Clientes Novos PDF")
-            safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios_cliente_periodo"]/a/span'))
-            fill_dates(page, "frmRelatorio", data_inicial, data_final)
-            pdf_btn_cli = first_visible(page, ['xpath=//*[@id="frmRelatorio:j_idt130"]', 'xpath=//button[contains(.,"Imprimir")]'])
-            arquivos["clientes_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn_cli, f"clientes_{cliente_id}.pdf")
-
+            try:
+                print("[SCRAPER] Baixando Clientes Novos PDF")
+                safe_click(page.locator('xpath=//*[@id="menuform:um_reltorios_cliente_periodo"]/a/span'))
+                fill_dates(page, "frmRelatorio", data_inicial, data_final)
+                pdf_btn_cli = first_visible(page, ['xpath=//*[@id="frmRelatorio:j_idt130"]', 'xpath=//button[contains(.,"Imprimir")]'])
+                arquivos["clientes_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn_cli, f"clientes_{cliente_id}.pdf")
+            except Exception as e:
+                print(f"[ERRO SCRAPER CLIENTES NOVOS] {e}")
         except Exception as e:
-            print(f"[ERRO SCRAPER] {e}")
+            print(f"[ERRO CRÍTICO SCRAPER] {e}"){e}")
         finally:
             context.close()
             browser.close()
