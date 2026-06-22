@@ -29,9 +29,8 @@ def safe_click(locator):
 
 def fill_date(page, selector, date_str):
     """
-    Preenche um campo de data no Clinicorp de forma robusta.
-    Remove o readonly via JS, foca no campo, apaga o valor anterior e preenche via Playwright
-    para disparar corretamente as atualizações de estado nos frameworks SPA (React/Angular).
+    Preenche um campo de data no Clinicorp de forma robusta e programática,
+    evitando que o Datepicker se abra e crie overlays que interceptam cliques.
     """
     print(f"[SCRAPER] Preenchendo campo '{selector}' com a data '{date_str}'")
     locator = page.locator(selector)
@@ -40,17 +39,21 @@ def fill_date(page, selector, date_str):
     # Extrai o ID do seletor (ex: id=From -> From)
     el_id = selector.split("=")[-1]
     
-    # Remove readonly via JS
-    page.evaluate(f'const el = document.getElementById("{el_id}"); if (el) el.removeAttribute("readonly");')
-    page.wait_for_timeout(200)
-    
-    # Foca, limpa e digita via Playwright
-    locator.click()
-    page.keyboard.press("Control+A")
-    page.keyboard.press("Backspace")
-    page.wait_for_timeout(200)
-    locator.fill(date_str)
-    locator.press("Tab")
+    js_code = f"""
+        const el = document.getElementById("{el_id}");
+        if (el) {{
+            el.removeAttribute("readonly");
+            try {{
+                const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                setter.call(el, "{date_str}");
+            }} catch(e) {{}}
+            el.value = "{date_str}";
+            el.dispatchEvent(new Event("input", {{ bubbles: true }}));
+            el.dispatchEvent(new Event("change", {{ bubbles: true }}));
+            el.blur();
+        }}
+    """
+    page.evaluate(js_code)
     page.wait_for_timeout(500)
 
 def extrair_dados(cliente_config, data_inicial, data_final):
