@@ -68,14 +68,16 @@ def clean_period_data(cliente_id: str, data_inicial: str, data_final: str):
             dt_fim = data_final
             dt_faturamento = data_inicial
 
-    print(f"[BD] Limpando dados retroativos de {dt_ini} a {dt_fim} para evitar duplicatas...")
+    print(f"[BD] Limpando dados retroativos (orçamentos, consultas e faturamento) para o período {dt_ini} a {dt_fim} via RPC...")
     
-    # Limpa Orçamentos
-    supabase.table("clinicorp_orcamentos").delete().eq("cliente_id", cliente_id).gte("data", dt_ini).lte("data", dt_fim).execute()
-    
-    # Limpa Primeiras Consultas
-    supabase.table("clinicorp_primeiras_consultas").delete().eq("cliente_id", cliente_id).gte("data", dt_ini).lte("data", dt_fim).execute()
-    
-    # Limpa Faturamento Profissional no primeiro dia do mês filtrado
-    print(f"[BD] Limpando faturamento de {dt_faturamento}...")
-    supabase.table("clinicorp_faturamento_profissional").delete().eq("cliente_id", cliente_id).eq("data", dt_faturamento).execute()
+    try:
+        supabase.rpc("delete_clinicorp_data", {
+            "p_cliente_id": cliente_id,
+            "p_dt_ini": dt_ini,
+            "p_dt_fim": dt_fim,
+            "p_dt_faturamento": dt_faturamento
+        }).execute()
+        print("[BD] Limpeza de dados antigos concluída com sucesso.")
+    except Exception as e:
+        print(f"[ERRO] Falha ao executar a RPC delete_clinicorp_data: {e}")
+        raise e
