@@ -72,26 +72,45 @@ def main():
             print(f"[ERRO] Falha ao extrair dados do cliente {nome_loja}. Pulando para o próximo.")
             continue
             
-        # 3) Limpar dados existentes do período para não duplicar (Idempotência)
-        from database import clean_period_data
-        try:
-            clean_period_data(cid, data_inicial, data_final)
-        except Exception as e:
-            print(f"[ERRO] Falha ao limpar dados antigos do cliente {nome_loja}: {e}")
-            continue
+        # 3) Limpar e Processar Arquivos Individualmente (Idempotência sob demanda)
+        from database import (
+            clean_vendas,
+            clean_vendedores,
+            clean_clientes_novos,
+            clean_estoque
+        )
 
-        # 4) Processar Arquivos e Inserir no Banco
         vendas = arquivos.get("vendas_excel")
-        if vendas: process_vendas_excel(vendas, cid)
+        if vendas:
+            try:
+                clean_vendas(cid, data_inicial, data_final)
+                process_vendas_excel(vendas, cid)
+            except Exception as e:
+                print(f"[ERRO] Falha ao limpar/processar vendas do cliente {nome_loja}: {e}")
         
         vendedores = arquivos.get("vendedores_pdf")
-        if vendedores: process_vendedores_pdf(vendedores, cid)
+        if vendedores:
+            try:
+                clean_vendedores(cid, data_inicial, data_final)
+                process_vendedores_pdf(vendedores, cid)
+            except Exception as e:
+                print(f"[ERRO] Falha ao limpar/processar vendedores do cliente {nome_loja}: {e}")
         
         clientes_pdf = arquivos.get("clientes_pdf")
-        if clientes_pdf: process_clientes_novos(clientes_pdf, cid)
+        if clientes_pdf:
+            try:
+                clean_clientes_novos(cid, data_inicial, data_final)
+                process_clientes_novos(clientes_pdf, cid)
+            except Exception as e:
+                print(f"[ERRO] Falha ao limpar/processar clientes novos do cliente {nome_loja}: {e}")
         
         estoque = arquivos.get("estoque_excel")
-        if estoque: process_estoque_excel(estoque, cid)
+        if estoque:
+            try:
+                clean_estoque(cid)
+                process_estoque_excel(estoque, cid)
+            except Exception as e:
+                print(f"[ERRO] Falha ao limpar/processar estoque do cliente {nome_loja}: {e}")
         
         print(f"[CLIENTE] Processamento concluído para: {nome_loja}")
 

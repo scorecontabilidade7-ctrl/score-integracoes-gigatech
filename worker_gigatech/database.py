@@ -46,12 +46,7 @@ def batch_insert(table_name: str, data: list, batch_size: int = 500):
             print(f"[ERRO] Falha ao inserir lote em {table_name}: {e}")
             raise e
 
-def clean_period_data(cliente_id: str, data_inicial: str, data_final: str):
-    """
-    Remove dados do período e do cliente especificado para evitar duplicatas.
-    Formato esperado: YYYY-MM-DD
-    """
-    # Converter dd/mm/yyyy para yyyy-mm-dd
+def parse_dates(data_inicial: str, data_final: str):
     from datetime import datetime
     try:
         dt_ini = datetime.strptime(data_inicial, "%d/%m/%Y").date().isoformat()
@@ -59,17 +54,23 @@ def clean_period_data(cliente_id: str, data_inicial: str, data_final: str):
     except:
         dt_ini = data_inicial
         dt_fim = data_final
+    return dt_ini, dt_fim
 
-    print(f"[BD] Limpando dados retroativos de {dt_ini} a {dt_fim} para evitar duplicatas...")
-    
-    # Limpa Vendas
+def clean_vendas(cliente_id: str, data_inicial: str, data_final: str):
+    dt_ini, dt_fim = parse_dates(data_inicial, data_final)
+    print(f"[BD] Limpando vendas antigas de {dt_ini} a {dt_fim}...")
     supabase.table("gigatech_vendas").delete().eq("cliente_id", cliente_id).gte("data_venda", dt_ini).lte("data_venda", dt_fim).execute()
-    
-    # Limpa Vendedores
+
+def clean_vendedores(cliente_id: str, data_inicial: str, data_final: str):
+    dt_ini, dt_fim = parse_dates(data_inicial, data_final)
+    print(f"[BD] Limpando vendedores antigos de {dt_ini} a {dt_fim}...")
     supabase.table("gigatech_vendedores").delete().eq("cliente_id", cliente_id).gte("data_venda", dt_ini).lte("data_venda", dt_fim).execute()
-    
-    # Limpa Clientes Novos
+
+def clean_clientes_novos(cliente_id: str, data_inicial: str, data_final: str):
+    dt_ini, dt_fim = parse_dates(data_inicial, data_final)
+    print(f"[BD] Limpando clientes novos antigos de {dt_ini} a {dt_fim}...")
     supabase.table("gigatech_clientes_novos").delete().eq("cliente_id", cliente_id).gte("data_cadastro", dt_ini).lte("data_cadastro", dt_fim).execute()
-    
-    # Estoque é uma foto do momento, então deletamos todo o estoque daquele cliente para recadastrar o atualizado
+
+def clean_estoque(cliente_id: str):
+    print(f"[BD] Limpando estoque antigo para recadastro...")
     supabase.table("gigatech_estoque").delete().eq("cliente_id", cliente_id).execute()

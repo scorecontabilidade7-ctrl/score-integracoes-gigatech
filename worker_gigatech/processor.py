@@ -121,36 +121,32 @@ def process_vendedores_pdf(file_path: str, cliente_id: str):
                 vendedor_atual = re.sub(r"\s+SEM SUPERVISOR.*$", "", linha, flags=re.IGNORECASE).strip()
                 continue
 
-            # Tenta a regex completa com os novos campos financeiros e comissões
-            match_completo = re.search(
-                r'^(.*?)\s+(NFC-e|Venda|NF-e|SAT|MFE|A Vista|Prazo|A Prazo|Venda NFC-e|Venda NF-e)\s+(\d{2}/\d{2}/\d{4})\s+(\d{5,})\s+(?:R\$)?\s*([\d\.,\-]+)\s+(?:R\$)?\s*([\d\.,\-]+)\s+(?:R\$)?\s*([\d\.,\-]+)', 
-                linha, 
-                re.IGNORECASE
-            )
+            # Nova Regex Flexível baseada no formato real de extração do PyPDF2
+            regex_completo = r'^(.*?)\s+(\d{2}/\d{2}/\d{4})\s+(\d{5,})\s+(?:R\$)?\s*([\d\.,\-]+)\s*(?:R\$)?\s*([\d\.,\-]+)\s+(?:R\$)?\s*([\d\.,\-]+)\s*(NFC-e|Venda|NF-e|SAT|MFE|A Vista|Prazo|A Prazo|Venda NFC-e|Venda NF-e)$'
+            
+            match_completo = re.search(regex_completo, linha, re.IGNORECASE)
             
             if match_completo:
                 cliente = match_completo.group(1).strip()
-                tipo_venda = match_completo.group(2).strip()
-                data_str = match_completo.group(3)
-                numero = match_completo.group(4)
-                vl_total = safe_float(match_completo.group(5))
+                data_str = match_completo.group(2)
+                numero = match_completo.group(3)
+                vl_total = safe_float(match_completo.group(4))
+                comis_supervisor = safe_float(match_completo.group(5))
                 comis_vendedor = safe_float(match_completo.group(6))
-                comis_supervisor = safe_float(match_completo.group(7))
+                tipo_venda = match_completo.group(7).strip()
             else:
-                # Fallback caso seja um tipo de venda novo/diferente
+                # Fallback caso seja um tipo de venda novo/diferente ou faltem dados
                 match_fallback = re.search(r'^(.*?)\s+(\d{2}/\d{2}/\d{4})\s+(\d{5,})', linha)
                 if match_fallback:
-                    cliente_completo = match_fallback.group(1).strip()
-                    # Tenta extrair a última palavra como tipo de venda se for comum
-                    parts = cliente_completo.rsplit(' ', 1)
-                    if len(parts) > 1 and parts[1].lower() in ('venda', 'nfc-e', 'nf-e', 'sat', 'mfe', 'prazo'):
-                        cliente = parts[0].strip()
-                        tipo_venda = parts[1].strip()
-                    else:
-                        cliente = cliente_completo
-                        tipo_venda = None
+                    cliente = match_fallback.group(1).strip()
                     data_str = match_fallback.group(2)
                     numero = match_fallback.group(3)
+                    # Tenta buscar tipo de venda conhecido no final da linha
+                    tipo_venda = None
+                    for t in ('venda', 'nfc-e', 'nf-e', 'sat', 'mfe', 'prazo', 'a vista', 'a prazo'):
+                        if linha.lower().endswith(t):
+                            tipo_venda = t
+                            break
                     vl_total = None
                     comis_vendedor = None
                     comis_supervisor = None

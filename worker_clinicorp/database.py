@@ -48,12 +48,7 @@ def batch_insert(table_name: str, data: list, batch_size: int = 500):
             raise e
 
 
-def clean_period_data(cliente_id: str, data_inicial: str, data_final: str):
-    """
-    Remove dados do período e do cliente especificado para evitar duplicatas.
-    Para faturamento, remove do primeiro dia do mês de início do período.
-    Formato esperado: dd/mm/yyyy ou yyyy-mm-dd
-    """
+def parse_dates(data_inicial: str, data_final: str):
     try:
         dt_ini = datetime.strptime(data_inicial, "%d/%m/%Y").date().isoformat()
         dt_fim = datetime.strptime(data_final, "%d/%m/%Y").date().isoformat()
@@ -67,17 +62,42 @@ def clean_period_data(cliente_id: str, data_inicial: str, data_final: str):
             dt_ini = data_inicial
             dt_fim = data_final
             dt_faturamento = data_inicial
+    return dt_ini, dt_fim, dt_faturamento
 
-    print(f"[BD] Limpando dados retroativos (orçamentos, consultas e faturamento) para o período {dt_ini} a {dt_fim} via RPC...")
-    
+def clean_faturamento(cliente_id: str, data_inicial: str):
+    _, _, dt_faturamento = parse_dates(data_inicial, data_inicial)
+    print(f"[BD] Limpando faturamento de {dt_faturamento} via RPC...")
     try:
-        supabase.rpc("delete_clinicorp_data", {
+        supabase.rpc("delete_clinicorp_faturamento", {
             "p_cliente_id": cliente_id,
-            "p_dt_ini": dt_ini,
-            "p_dt_fim": dt_fim,
             "p_dt_faturamento": dt_faturamento
         }).execute()
-        print("[BD] Limpeza de dados antigos concluída com sucesso.")
     except Exception as e:
-        print(f"[ERRO] Falha ao executar a RPC delete_clinicorp_data: {e}")
+        print(f"[ERRO] Falha ao limpar faturamento: {e}")
+        raise e
+
+def clean_orcamentos(cliente_id: str, data_inicial: str, data_final: str):
+    dt_ini, dt_fim, _ = parse_dates(data_inicial, data_final)
+    print(f"[BD] Limpando orçamentos de {dt_ini} a {dt_fim} via RPC...")
+    try:
+        supabase.rpc("delete_clinicorp_orcamentos", {
+            "p_cliente_id": cliente_id,
+            "p_dt_ini": dt_ini,
+            "p_dt_fim": dt_fim
+        }).execute()
+    except Exception as e:
+        print(f"[ERRO] Falha ao limpar orçamentos: {e}")
+        raise e
+
+def clean_primeiras_consultas(cliente_id: str, data_inicial: str, data_final: str):
+    dt_ini, dt_fim, _ = parse_dates(data_inicial, data_final)
+    print(f"[BD] Limpando primeiras consultas de {dt_ini} a {dt_fim} via RPC...")
+    try:
+        supabase.rpc("delete_clinicorp_primeiras_consultas", {
+            "p_cliente_id": cliente_id,
+            "p_dt_ini": dt_ini,
+            "p_dt_fim": dt_fim
+        }).execute()
+    except Exception as e:
+        print(f"[ERRO] Falha ao limpar primeiras consultas: {e}")
         raise e

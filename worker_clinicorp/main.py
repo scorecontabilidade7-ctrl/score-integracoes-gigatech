@@ -4,7 +4,7 @@ import shutil
 from datetime import datetime
 from dotenv import load_dotenv
 
-from database import get_active_clients, batch_insert, clean_period_data
+from database import get_active_clients, batch_insert
 from scraper import extrair_dados, TMP_DIR
 from processor import (
     process_faturamento_excel,
@@ -76,31 +76,42 @@ def main():
             print(f"[ERRO] Falha ao extrair dados do cliente {nome_loja}. Pulando para o próximo.")
             continue
             
-        # 3) Limpar dados existentes do período para não duplicar (Idempotência)
-        try:
-            clean_period_data(cid, data_inicial, data_final)
-        except Exception as e:
-            print(f"[ERRO] Falha ao limpar dados antigos do cliente {nome_loja}: {e}")
-            continue
+        # 3) Limpar e Processar Arquivos Individualmente (Idempotência sob demanda)
+        from database import (
+            clean_faturamento,
+            clean_orcamentos,
+            clean_primeiras_consultas
+        )
 
-        # 4) Processar Arquivos e Inserir no Banco
         faturamento_file = arquivos.get("faturamento_excel")
         if faturamento_file:
-            faturamento_records = process_faturamento_excel(faturamento_file, cid, data_inicial)
-            if faturamento_records:
-                batch_insert("clinicorp_faturamento_profissional", faturamento_records)
+            try:
+                clean_faturamento(cid, data_inicial)
+                faturamento_records = process_faturamento_excel(faturamento_file, cid, data_inicial)
+                if faturamento_records:
+                    batch_insert("clinicorp_faturamento_profissional", faturamento_records)
+            except Exception as e:
+                print(f"[ERRO] Falha ao limpar/processar faturamento do cliente {nome_loja}: {e}")
         
         orcamentos_file = arquivos.get("orcamentos_excel")
         if orcamentos_file:
-            orcamentos_records = process_orcamentos_excel(orcamentos_file, cid)
-            if orcamentos_records:
-                batch_insert("clinicorp_orcamentos", orcamentos_records)
+            try:
+                clean_orcamentos(cid, data_inicial, data_final)
+                orcamentos_records = process_orcamentos_excel(orcamentos_file, cid)
+                if orcamentos_records:
+                    batch_insert("clinicorp_orcamentos", orcamentos_records)
+            except Exception as e:
+                print(f"[ERRO] Falha ao limpar/processar orçamentos do cliente {nome_loja}: {e}")
         
         consultas_file = arquivos.get("primeira_consulta_excel")
         if consultas_file:
-            consultas_records = process_primeira_consulta_excel(consultas_file, cid)
-            if consultas_records:
-                batch_insert("clinicorp_primeiras_consultas", consultas_records)
+            try:
+                clean_primeiras_consultas(cid, data_inicial, data_final)
+                consultas_records = process_primeira_consulta_excel(consultas_file, cid)
+                if consultas_records:
+                    batch_insert("clinicorp_primeiras_consultas", consultas_records)
+            except Exception as e:
+                print(f"[ERRO] Falha ao limpar/processar primeiras consultas do cliente {nome_loja}: {e}")
         
         print(f"[CLIENTE] Processamento concluído para: {nome_loja}")
 
