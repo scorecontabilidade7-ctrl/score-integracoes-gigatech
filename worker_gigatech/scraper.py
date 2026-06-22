@@ -195,7 +195,7 @@ def extrair_dados(cliente_config, data_inicial, data_final):
             except Exception as e:
                 print(f"[ERRO SCRAPER CLIENTES NOVOS] {e}")
         except Exception as e:
-            print(f"[ERRO CRÍTICO SCRAPER] {e}"){e}")
+            print(f"[ERRO CRÍTICO SCRAPER] {e}")
         finally:
             context.close()
             browser.close()
