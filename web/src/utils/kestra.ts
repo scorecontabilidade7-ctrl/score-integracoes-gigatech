@@ -64,7 +64,6 @@ export async function getKestraExecutions(systemId: string = 'gigatech'): Promis
   }
 
   const baseUrl = match[1]
-  const searchUrl = `${baseUrl}/executions/search?namespace=${systemConfig.namespace}&flowId=${systemConfig.flowId}&size=50`
 
   try {
     const headers: Record<string, string> = {
@@ -77,17 +76,34 @@ export async function getKestraExecutions(systemId: string = 'gigatech'): Promis
       headers['Authorization'] = `Basic ${Buffer.from(process.env.KESTRA_BASIC_AUTH).toString('base64')}`
     }
 
-    const res = await fetch(searchUrl, {
-      headers,
-      next: { revalidate: 15 } // Cache de 15 segundos
-    })
+    let rawExecutions: KestraRawExecution[] = []
+    let page = 1
+    const pageSize = 100
+    let hasMore = true
 
-    if (!res.ok) {
-      throw new Error(`Erro ao buscar execuções do Kestra: ${res.status}`)
+    while (hasMore) {
+      const pagedUrl = `${baseUrl}/executions/search?namespace=${systemConfig.namespace}&flowId=${systemConfig.flowId}&size=${pageSize}&page=${page}`
+      
+      const res = await fetch(pagedUrl, {
+        headers,
+        next: { revalidate: 15 } // Cache de 15 segundos
+      })
+
+      if (!res.ok) {
+        throw new Error(`Erro ao buscar execuções do Kestra (página ${page}): ${res.status}`)
+      }
+
+      const data = await res.json()
+      const results: KestraRawExecution[] = data.results || []
+      rawExecutions = [...rawExecutions, ...results]
+
+      // Se retornou menos que o tamanho da página, significa que chegamos à última
+      if (results.length < pageSize) {
+        hasMore = false
+      } else {
+        page++
+      }
     }
-
-    const data = await res.json()
-    const rawExecutions: KestraRawExecution[] = data.results || []
 
     const executions = [...rawExecutions].sort((a, b) => {
       const timeA = a.state?.startDate ? new Date(a.state.startDate).getTime() : 0
