@@ -2,7 +2,7 @@ import { login } from './actions'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
-import { Button } from '@/components/ui/button'
+import { SubmitButton } from '@/components/submit-button'
 
 export default async function LoginPage({
   searchParams,
@@ -64,9 +64,9 @@ export default async function LoginPage({
                   className="rounded-xl h-11"
                 />
               </div>
-              <Button type="submit" className="w-full rounded-xl h-11 text-base font-medium shadow-none hover:opacity-90 transition-opacity">
+              <SubmitButton className="w-full rounded-xl h-11 text-base font-medium shadow-none hover:opacity-90 transition-opacity">
                 Entrar
-              </Button>
+              </SubmitButton>
             </form>
           </CardContent>
         </Card>
