@@ -101,3 +101,17 @@ def clean_primeiras_consultas(cliente_id: str, data_inicial: str, data_final: st
     except Exception as e:
         print(f"[ERRO] Falha ao limpar primeiras consultas: {e}")
         raise e
+
+def remove_duplicados_orcamentos():
+    print("[BD] Removendo orçamentos duplicados via RPC...")
+    try:
+        supabase.rpc("remove_duplicados_clinicorp_orcamentos").execute()
+    except Exception as e:
+        print(f"[ERRO] Falha ao remover duplicados de orçamentos: {e}")
+
+def remove_duplicados_primeiras_consultas():
+    print("[BD] Removendo primeiras consultas duplicadas via RPC...")
+    try:
+        supabase.rpc("remove_duplicados_clinicorp_primeiras_consultas").execute()
+    except Exception as e:
+        print(f"[ERRO] Falha ao remover duplicados de primeiras consultas: {e}")

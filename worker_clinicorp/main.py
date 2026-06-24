@@ -80,7 +80,9 @@ def main():
         from database import (
             clean_faturamento,
             clean_orcamentos,
-            clean_primeiras_consultas
+            clean_primeiras_consultas,
+            remove_duplicados_orcamentos,
+            remove_duplicados_primeiras_consultas
         )
 
         faturamento_file = arquivos.get("faturamento_excel")
@@ -106,6 +108,7 @@ def main():
                 orcamentos_records = process_orcamentos_excel(orcamentos_file, cid)
                 if orcamentos_records:
                     batch_insert("clinicorp_orcamentos", orcamentos_records)
+                    remove_duplicados_orcamentos()
             except Exception as e:
                 print(f"[ERRO] Falha ao limpar/processar orçamentos do cliente {nome_loja}: {e}")
         
@@ -116,6 +119,7 @@ def main():
                 consultas_records = process_primeira_consulta_excel(consultas_file, cid, data_inicial)
                 if consultas_records:
                     batch_insert("clinicorp_primeiras_consultas", consultas_records)
+                    remove_duplicados_primeiras_consultas()
             except Exception as e:
                 print(f"[ERRO] Falha ao limpar/processar primeiras consultas do cliente {nome_loja}: {e}")
         
