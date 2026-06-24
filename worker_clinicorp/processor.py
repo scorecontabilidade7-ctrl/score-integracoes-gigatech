@@ -164,6 +164,9 @@ def process_orcamentos_excel(file_path: str, cliente_id: str) -> list:
         "ticket_medio": "ticket_medio"
     }
 
+    hoje = datetime.today()
+    mes_atual_prefix = f"{hoje.year}-{hoje.month:02d}"
+    
     records = []
     for _, row in df.iterrows():
         rec = {"cliente_id": cliente_id}
@@ -186,9 +189,11 @@ def process_orcamentos_excel(file_path: str, cliente_id: str) -> list:
         
         # Só adiciona se tiver paciente ou profissional preenchido (linha válida)
         if rec.get("paciente") or rec.get("profissional"):
-            records.append(rec)
+            # Desconsidera a data passada por parâmetro e filtra apenas pelo mês atual na coluna "data"
+            if rec.get("data") and rec["data"].startswith(mes_atual_prefix):
+                records.append(rec)
 
-    print(f"[PROCESSADOR] {len(records)} orçamentos extraídos.")
+    print(f"[PROCESSADOR] {len(records)} orçamentos extraídos (mês atual: {mes_atual_prefix}).")
     return records
 
 
@@ -218,6 +223,9 @@ def process_primeira_consulta_excel(file_path: str, cliente_id: str, data_inicia
     }
 
     dt_cadastro = format_date(data_inicial)
+    hoje = datetime.today()
+    mes_atual_prefix = f"{hoje.year}-{hoje.month:02d}"
+    
     records = []
     for _, row in df.iterrows():
         rec = {"cliente_id": cliente_id, "data_cadastro": dt_cadastro}
@@ -232,7 +240,9 @@ def process_primeira_consulta_excel(file_path: str, cliente_id: str, data_inicia
                     rec[db_field] = str(val).strip() if not pd.isna(val) else None
         
         if rec.get("nome") and rec.get("data"):
-            records.append(rec)
+            # Desconsidera a data passada por parâmetro e filtra apenas pelo mês atual
+            if rec["data"].startswith(mes_atual_prefix):
+                records.append(rec)
 
-    print(f"[PROCESSADOR] {len(records)} primeiras consultas extraídas.")
+    print(f"[PROCESSADOR] {len(records)} primeiras consultas extraídas (mês atual: {mes_atual_prefix}).")
     return records

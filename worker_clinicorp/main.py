@@ -93,10 +93,16 @@ def main():
             except Exception as e:
                 print(f"[ERRO] Falha ao limpar/processar faturamento do cliente {nome_loja}: {e}")
         
+        import calendar
+        hoje = datetime.today()
+        ultimo_dia = calendar.monthrange(hoje.year, hoje.month)[1]
+        data_ini_mes = f"01/{hoje.month:02d}/{hoje.year}"
+        data_fim_mes = f"{ultimo_dia:02d}/{hoje.month:02d}/{hoje.year}"
+
         orcamentos_file = arquivos.get("orcamentos_excel")
         if orcamentos_file:
             try:
-                clean_orcamentos(cid, data_inicial, data_final)
+                clean_orcamentos(cid, data_ini_mes, data_fim_mes)
                 orcamentos_records = process_orcamentos_excel(orcamentos_file, cid)
                 if orcamentos_records:
                     batch_insert("clinicorp_orcamentos", orcamentos_records)
@@ -106,7 +112,7 @@ def main():
         consultas_file = arquivos.get("primeira_consulta_excel")
         if consultas_file:
             try:
-                clean_primeiras_consultas(cid, data_inicial, data_final)
+                clean_primeiras_consultas(cid, data_ini_mes, data_fim_mes)
                 consultas_records = process_primeira_consulta_excel(consultas_file, cid, data_inicial)
                 if consultas_records:
                     batch_insert("clinicorp_primeiras_consultas", consultas_records)
