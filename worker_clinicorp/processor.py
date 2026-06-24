@@ -192,7 +192,7 @@ def process_orcamentos_excel(file_path: str, cliente_id: str) -> list:
     return records
 
 
-def process_primeira_consulta_excel(file_path: str, cliente_id: str) -> list:
+def process_primeira_consulta_excel(file_path: str, cliente_id: str, data_inicial: str) -> list:
     """
     Processa o arquivo Primeira Consulta.xlsx.
     """
@@ -217,9 +217,10 @@ def process_primeira_consulta_excel(file_path: str, cliente_id: str) -> list:
         "observaoes": "observacoes"
     }
 
+    dt_cadastro = format_date(data_inicial)
     records = []
     for _, row in df.iterrows():
-        rec = {"cliente_id": cliente_id}
+        rec = {"cliente_id": cliente_id, "data_cadastro": dt_cadastro}
         
         for col_name in df.columns:
             db_field = col_mapping.get(col_name)

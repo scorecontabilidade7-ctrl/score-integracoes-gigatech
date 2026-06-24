@@ -107,7 +107,7 @@ def main():
         if consultas_file:
             try:
                 clean_primeiras_consultas(cid, data_inicial, data_final)
-                consultas_records = process_primeira_consulta_excel(consultas_file, cid)
+                consultas_records = process_primeira_consulta_excel(consultas_file, cid, data_inicial)
                 if consultas_records:
                     batch_insert("clinicorp_primeiras_consultas", consultas_records)
             except Exception as e:
