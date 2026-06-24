@@ -39,22 +39,22 @@ def fill_date(page, selector, date_str):
     # Extrai o ID do seletor (ex: id=From -> From)
     el_id = selector.split("=")[-1]
     
-    # Remove o readonly via JS para o Playwright conseguir digitar
-    page.evaluate(f'document.getElementById("{el_id}").removeAttribute("readonly");')
-    
-    # Foca no input forçando o clique (ignora overlays)
-    locator.click(force=True)
-    locator.fill("")
-    locator.type(date_str, delay=100)
-    
-    # Pressiona Enter e Escape para garantir que o datepicker se feche
-    locator.press("Enter")
-    page.keyboard.press("Escape")
-    locator.blur()
-    
-    # Clica no canto superior da tela para fechar qualquer overlay residual do Clinicorp
-    page.mouse.click(0, 0)
-    page.wait_for_timeout(300)
+    js_code = f"""
+        const el = document.getElementById("{el_id}");
+        if (el) {{
+            el.removeAttribute("readonly");
+            try {{
+                const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
+                setter.call(el, "{date_str}");
+            }} catch(e) {{}}
+            el.value = "{date_str}";
+            el.dispatchEvent(new Event("input", {{ bubbles: true }}));
+            el.dispatchEvent(new Event("change", {{ bubbles: true }}));
+            el.blur();
+        }}
+    """
+    page.evaluate(js_code)
+    page.wait_for_timeout(500)
 
 def extrair_dados(cliente_config, data_inicial, data_final):
     """
@@ -121,12 +121,17 @@ def extrair_dados(cliente_config, data_inicial, data_final):
 
             # Baixar Excel de Faturamento
             print("[SCRAPER] Baixando Faturamento.xlsx")
-            with page.expect_download(timeout=60000) as download_info:
-                safe_click(page.locator('xpath=//*[@id="table"]/div/div[1]/button[1]/span[1]'))
-            
-            faturamento_path = TMP_DIR / f"faturamento_{cliente_id}.xlsx"
-            shutil.copy(download_info.value.path(), faturamento_path)
-            arquivos["faturamento_excel"] = str(faturamento_path)
+            try:
+                btn_down_fat = page.locator('xpath=//*[@id="table"]/div/div[1]/button[1]/span[1]')
+                btn_down_fat.wait_for(state="visible", timeout=5000)
+                with page.expect_download(timeout=60000) as download_info:
+                    safe_click(btn_down_fat)
+                
+                faturamento_path = TMP_DIR / f"faturamento_{cliente_id}.xlsx"
+                shutil.copy(download_info.value.path(), faturamento_path)
+                arquivos["faturamento_excel"] = str(faturamento_path)
+            except Exception:
+                print("[SCRAPER] Nenhum dado de Faturamento encontrado neste período (tabela vazia).")
 
             # 2. DOWNLOAD ORÇAMENTOS
             print("[SCRAPER] Navegando para Orçamentos...")
@@ -145,12 +150,17 @@ def extrair_dados(cliente_config, data_inicial, data_final):
 
             # Baixar Excel de Orçamentos
             print("[SCRAPER] Baixando Orçamentos.xlsx")
-            with page.expect_download(timeout=60000) as download_info_2:
-                safe_click(page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[2]/div/div[2]/div[2]/div/button[1]/span[1]'))
+            try:
+                btn_down_orc = page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[2]/div/div[2]/div[2]/div/button[1]/span[1]')
+                btn_down_orc.wait_for(state="visible", timeout=5000)
+                with page.expect_download(timeout=60000) as download_info_2:
+                    safe_click(btn_down_orc)
 
-            orcamentos_path = TMP_DIR / f"orcamentos_{cliente_id}.xlsx"
-            shutil.copy(download_info_2.value.path(), orcamentos_path)
-            arquivos["orcamentos_excel"] = str(orcamentos_path)
+                orcamentos_path = TMP_DIR / f"orcamentos_{cliente_id}.xlsx"
+                shutil.copy(download_info_2.value.path(), orcamentos_path)
+                arquivos["orcamentos_excel"] = str(orcamentos_path)
+            except Exception:
+                print("[SCRAPER] Nenhum dado de Orçamentos encontrado neste período (tabela vazia).")
 
             # 3. DOWNLOAD PRIMEIRA CONSULTA
             print("[SCRAPER] Navegando para Primeiras Consultas...")
@@ -172,17 +182,27 @@ def extrair_dados(cliente_config, data_inicial, data_final):
 
             # Baixar Excel de Consultas
             print("[SCRAPER] Baixando Primeira Consulta.xlsx")
-            with page.expect_download(timeout=60000) as download_info_3:
-                safe_click(page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[2]/div/div[3]/div[3]/div/div[1]/div/button[1]/span[1]'))
+            try:
+                btn_down_cons = page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[2]/div/div[3]/div[3]/div/div[1]/div/button[1]/span[1]')
+                btn_down_cons.wait_for(state="visible", timeout=5000)
+                with page.expect_download(timeout=60000) as download_info_3:
+                    safe_click(btn_down_cons)
 
-            consultas_path = TMP_DIR / f"consultas_{cliente_id}.xlsx"
-            shutil.copy(download_info_3.value.path(), consultas_path)
-            arquivos["primeira_consulta_excel"] = str(consultas_path)
+                consultas_path = TMP_DIR / f"consultas_{cliente_id}.xlsx"
+                shutil.copy(download_info_3.value.path(), consultas_path)
+                arquivos["primeira_consulta_excel"] = str(consultas_path)
+            except Exception:
+                print("[SCRAPER] Nenhum dado de Primeiras Consultas encontrado neste período (tabela vazia).")
             
             print("[SCRAPER] Todos os arquivos foram baixados com sucesso!")
 
         except Exception as e:
             print(f"[ERRO SCRAPER] {e}")
+            try:
+                page.screenshot(path=str(TMP_DIR / "error_screenshot.png"), full_page=True)
+                print(f"[SCRAPER] Screenshot salvo em {TMP_DIR / 'error_screenshot.png'}")
+            except:
+                pass
             raise e
         finally:
             context.close()
