@@ -42,14 +42,18 @@ def fill_date(page, selector, date_str):
     # Remove o readonly via JS para o Playwright conseguir digitar
     page.evaluate(f'document.getElementById("{el_id}").removeAttribute("readonly");')
     
-    # Foca no input, limpa e digita como um humano (isso garante que o React/Vue atualize o estado interno)
-    locator.click()
+    # Foca no input forçando o clique (ignora overlays)
+    locator.click(force=True)
     locator.fill("")
     locator.type(date_str, delay=100)
     
-    # Pressiona Enter para fechar o datepicker e aplica um blur
+    # Pressiona Enter e Escape para garantir que o datepicker se feche
     locator.press("Enter")
+    page.keyboard.press("Escape")
     locator.blur()
+    
+    # Clica no canto superior da tela para fechar qualquer overlay residual do Clinicorp
+    page.mouse.click(0, 0)
     page.wait_for_timeout(300)
 
 def extrair_dados(cliente_config, data_inicial, data_final):
