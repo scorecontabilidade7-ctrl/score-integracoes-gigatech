@@ -39,22 +39,18 @@ def fill_date(page, selector, date_str):
     # Extrai o ID do seletor (ex: id=From -> From)
     el_id = selector.split("=")[-1]
     
-    js_code = f"""
-        const el = document.getElementById("{el_id}");
-        if (el) {{
-            el.removeAttribute("readonly");
-            try {{
-                const setter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, "value").set;
-                setter.call(el, "{date_str}");
-            }} catch(e) {{}}
-            el.value = "{date_str}";
-            el.dispatchEvent(new Event("input", {{ bubbles: true }}));
-            el.dispatchEvent(new Event("change", {{ bubbles: true }}));
-            el.blur();
-        }}
-    """
-    page.evaluate(js_code)
-    page.wait_for_timeout(500)
+    # Remove o readonly via JS para o Playwright conseguir digitar
+    page.evaluate(f'document.getElementById("{el_id}").removeAttribute("readonly");')
+    
+    # Foca no input, limpa e digita como um humano (isso garante que o React/Vue atualize o estado interno)
+    locator.click()
+    locator.fill("")
+    locator.type(date_str, delay=100)
+    
+    # Pressiona Enter para fechar o datepicker e aplica um blur
+    locator.press("Enter")
+    locator.blur()
+    page.wait_for_timeout(300)
 
 def extrair_dados(cliente_config, data_inicial, data_final):
     """
