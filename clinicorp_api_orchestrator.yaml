@@ -6,11 +6,11 @@ inputs:
   - id: data_inicial
     type: STRING
     required: false
-    description: "Formato: dd/mm/yyyy. Deixe vazio para usar a data de hoje."
+    description: "Formato: dd/mm/yyyy. Deixe vazio para usar o mês atual inteiro."
   - id: data_final
     type: STRING
     required: false
-    description: "Formato: dd/mm/yyyy. Deixe vazio para usar a data de hoje."
+    description: "Formato: dd/mm/yyyy. Deixe vazio para usar o mês atual inteiro."
   - id: cliente_id
     type: STRING
     required: true
