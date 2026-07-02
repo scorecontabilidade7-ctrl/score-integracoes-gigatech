@@ -197,9 +197,6 @@ def extrair_dados(cliente_config, data_inicial, data_final):
             # FECHAMENTO DE CAIXA PDF
             try:
                 print("[SCRAPER] Baixando Fechamento de Caixa PDF")
-                # Wait for menu to be ready
-                page.wait_for_selector("#menuform", timeout=60000)
-                
                 url_caixa = "https://app.mentorasolucoes.com.br/Voti-1.0.7/relatorios_frente_caixa/frm_rel_financeiro_caixa_novo.xhtml"
                 page.goto(url_caixa, wait_until="domcontentloaded", timeout=60000)
                 fill_dates(page, "frmFechamentoCaixa", data_inicial, data_final)
