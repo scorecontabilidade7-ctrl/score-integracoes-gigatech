@@ -307,7 +307,7 @@ def process_fechamento_caixa(file_path: str, cliente_id: str):
     
     def format_val(v, motivo):
         v = v.replace("R$", "").strip()
-        if motivo != "TOTAL VENDA":
+        if motivo not in ("TOTAL VENDA", "ABERTURA"):
             return "-" + v
         return v
     
