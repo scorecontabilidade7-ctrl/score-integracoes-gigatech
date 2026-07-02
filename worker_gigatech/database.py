@@ -74,3 +74,8 @@ def clean_clientes_novos(cliente_id: str, data_inicial: str, data_final: str):
 def clean_estoque(cliente_id: str):
     print(f"[BD] Limpando estoque antigo para recadastro...")
     supabase.table("gigatech_estoque").delete().eq("cliente_id", cliente_id).execute()
+
+def clean_fechamento_caixa(cliente_id: str, data_inicial: str, data_final: str):
+    dt_ini, dt_fim = parse_dates(data_inicial, data_final)
+    print(f"[BD] Limpando fechamento de caixa antigo de {dt_ini} a {dt_fim}...")
+    supabase.table("gigatech_fechamento_caixa").delete().eq("cliente_id", cliente_id).gte("data_caixa", dt_ini).lte("data_caixa", dt_fim).execute()

@@ -269,3 +269,130 @@ def process_estoque_excel(file_path: str, cliente_id: str):
         })
 
     batch_insert("gigatech_estoque", registros)
+
+def process_fechamento_caixa(file_path: str, cliente_id: str):
+    """Lê PDF de Fechamento de Caixa e insere no banco gigatech_fechamento_caixa."""
+    print(f"[PROCESS] Processando PDF de Fechamento de Caixa: {file_path}")
+    try:
+        reader = PdfReader(file_path)
+    except Exception as e:
+        print(f"[ERRO] Falha ao ler {file_path}: {e}")
+        return
+
+    text = ""
+    for page in reader.pages:
+        text += page.extract_text() + "\n"
+
+    lines = text.split('\n')
+    data_ext = None
+    
+    date_match = re.search(r"(\d{2}/\d{2}/\d{4})\s*Período:", text)
+    if date_match:
+        data_ext = date_match.group(1)
+    else:
+        date_match = re.search(r"Período:\s*(\d{2}/\d{2}/\d{4})", text)
+        if date_match:
+            data_ext = date_match.group(1)
+            
+    try:
+        data_parsed = datetime.strptime(data_ext, "%d/%m/%Y").date().isoformat()
+    except:
+        data_parsed = None
+
+    registros = []
+    
+    in_dinheiro = False
+    in_suprimento = False
+    in_sangria = False
+    
+    def format_val(v, motivo):
+        v = v.replace("R$", "").strip()
+        if motivo != "TOTAL VENDA":
+            return "-" + v
+        return v
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        if line == "DINHEIRO":
+            in_dinheiro = True
+            in_suprimento = False
+            in_sangria = False
+            continue
+        elif "SUPRIMENTO" in line:
+            in_suprimento = True
+            in_dinheiro = False
+            in_sangria = False
+            continue
+        elif "SANGRIA" in line:
+            in_sangria = True
+            in_dinheiro = False
+            in_suprimento = False
+            continue
+            
+        if "Total Troco:" in line or "Total Troco :" in line:
+            match = re.search(r"(R\$[\d\.,]+|[\d\.,]+)\s*Total\s*Troco", line)
+            if not match:
+                match = re.search(r"Total\s*Troco\s*:\s*(R\$[\d\.,]+|[\d\.,]+)", line)
+            
+            if match:
+                motivo_troco = "TROCO"
+                valor = safe_float(format_val(match.group(1), motivo_troco))
+                registros.append({
+                    "cliente_id": cliente_id,
+                    "forma": "DINHEIRO",
+                    "motivo": motivo_troco,
+                    "data_caixa": data_parsed,
+                    "valor": valor
+                })
+            
+        if in_dinheiro:
+            if "Total :" in line:
+                match = re.search(r"(R\$[\d\.,]+|[\d\.,]+)\s*Total\s*:", line)
+                if match:
+                    motivo = "TOTAL VENDA"
+                    valor = safe_float(format_val(match.group(1), motivo))
+                    registros.append({
+                        "cliente_id": cliente_id,
+                        "forma": "DINHEIRO",
+                        "motivo": motivo,
+                        "data_caixa": data_parsed,
+                        "valor": valor
+                    })
+                in_dinheiro = False
+                
+        elif in_suprimento:
+            if "Total :" in line:
+                in_suprimento = False
+            else:
+                match = re.search(r"^(.*?)\s*(R\$[\d\.,]+)$", line)
+                if match:
+                    motivo = match.group(1).strip()
+                    valor = safe_float(format_val(match.group(2), motivo))
+                    registros.append({
+                        "cliente_id": cliente_id,
+                        "forma": "SUPRIMENTOS",
+                        "motivo": motivo,
+                        "data_caixa": data_parsed,
+                        "valor": valor
+                    })
+                    
+        elif in_sangria:
+            if "Total :" in line:
+                in_sangria = False
+            else:
+                match = re.search(r"^(.*?)\s*(R\$[\d\.,]+)$", line)
+                if match:
+                    motivo = match.group(1).strip()
+                    valor = safe_float(format_val(match.group(2), motivo))
+                    registros.append({
+                        "cliente_id": cliente_id,
+                        "forma": "SANGRIA",
+                        "motivo": motivo,
+                        "data_caixa": data_parsed,
+                        "valor": valor
+                    })
+
+    batch_insert("gigatech_fechamento_caixa", registros)

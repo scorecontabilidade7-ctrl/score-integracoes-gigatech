@@ -194,6 +194,21 @@ def extrair_dados(cliente_config, data_inicial, data_final):
                 arquivos["clientes_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn_cli, f"clientes_{cliente_id}.pdf")
             except Exception as e:
                 print(f"[ERRO SCRAPER CLIENTES NOVOS] {e}")
+            # FECHAMENTO DE CAIXA PDF
+            try:
+                print("[SCRAPER] Baixando Fechamento de Caixa PDF")
+                # Wait for menu to be ready
+                page.wait_for_selector("#menuform", timeout=60000)
+                
+                url_caixa = "https://app.mentorasolucoes.com.br/Voti-1.0.7/relatorios_frente_caixa/frm_rel_financeiro_caixa_novo.xhtml"
+                page.goto(url_caixa, wait_until="domcontentloaded", timeout=60000)
+                fill_dates(page, "frmFechamentoCaixa", data_inicial, data_final)
+                
+                pdf_btn_caixa = page.locator('xpath=//button[.//span[normalize-space()="Imprimir Completo"]]')
+                arquivos["fechamento_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn_caixa, f"caixa_{cliente_id}.pdf")
+            except Exception as e:
+                print(f"[ERRO SCRAPER FECHAMENTO CAIXA] {e}")
+
         except Exception as e:
             print(f"[ERRO CRÍTICO SCRAPER] {e}")
         finally:

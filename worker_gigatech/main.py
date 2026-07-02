@@ -10,7 +10,8 @@ from processor import (
     process_vendas_excel,
     process_vendedores_pdf,
     process_clientes_novos,
-    process_estoque_excel
+    process_estoque_excel,
+    process_fechamento_caixa
 )
 
 load_dotenv()
@@ -77,7 +78,8 @@ def main():
             clean_vendas,
             clean_vendedores,
             clean_clientes_novos,
-            clean_estoque
+            clean_estoque,
+            clean_fechamento_caixa
         )
 
         vendas = arquivos.get("vendas_excel")
@@ -111,6 +113,14 @@ def main():
                 process_estoque_excel(estoque, cid)
             except Exception as e:
                 print(f"[ERRO] Falha ao limpar/processar estoque do cliente {nome_loja}: {e}")
+
+        fechamento = arquivos.get("fechamento_pdf")
+        if fechamento:
+            try:
+                clean_fechamento_caixa(cid, data_inicial, data_final)
+                process_fechamento_caixa(fechamento, cid)
+            except Exception as e:
+                print(f"[ERRO] Falha ao limpar/processar fechamento do caixa do cliente {nome_loja}: {e}")
         
         print(f"[CLIENTE] Processamento concluído para: {nome_loja}")
 
