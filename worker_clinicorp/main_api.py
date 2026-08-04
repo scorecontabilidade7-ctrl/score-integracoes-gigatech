@@ -95,7 +95,7 @@ def main():
             json_orc = fetch_orcamentos(token, data_inicial, data_final, clinic_id=0)
             if json_orc:
                 clean_orcamentos(cid, data_inicial, data_final)
-                records_orc = process_orcamentos_json(json_orc, cid)
+                records_orc = process_orcamentos_json(json_orc, cid, data_inicial)
                 if records_orc:
                     batch_insert("clinicorp_orcamentos", records_orc)
                     remove_duplicados_orcamentos()

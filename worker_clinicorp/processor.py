@@ -124,7 +124,7 @@ def process_faturamento_excel(file_path: str, cliente_id: str, data_inicial: str
     return records
 
 
-def process_orcamentos_excel(file_path: str, cliente_id: str) -> list:
+def process_orcamentos_excel(file_path: str, cliente_id: str, data_inicial: str = None) -> list:
     """
     Processa o arquivo Orçamentos.xlsx.
     """
@@ -164,8 +164,9 @@ def process_orcamentos_excel(file_path: str, cliente_id: str) -> list:
         "ticket_medio": "ticket_medio"
     }
 
+    dt_ref = format_date(data_inicial) if data_inicial else None
     hoje = datetime.today()
-    mes_atual_prefix = f"{hoje.year}-{hoje.month:02d}"
+    mes_prefix = dt_ref[:7] if dt_ref else f"{hoje.year}-{hoje.month:02d}"
     
     records = []
     for _, row in df.iterrows():
@@ -189,11 +190,10 @@ def process_orcamentos_excel(file_path: str, cliente_id: str) -> list:
         
         # Só adiciona se tiver paciente ou profissional preenchido (linha válida)
         if rec.get("paciente") or rec.get("profissional"):
-            # Desconsidera a data passada por parâmetro e filtra apenas pelo mês atual na coluna "data"
-            if rec.get("data") and rec["data"].startswith(mes_atual_prefix):
+            if rec.get("data") and rec["data"].startswith(mes_prefix):
                 records.append(rec)
 
-    print(f"[PROCESSADOR] {len(records)} orçamentos extraídos (mês atual: {mes_atual_prefix}).")
+    print(f"[PROCESSADOR] {len(records)} orçamentos extraídos (mês referência: {mes_prefix}).")
     return records
 
 
@@ -224,7 +224,7 @@ def process_primeira_consulta_excel(file_path: str, cliente_id: str, data_inicia
 
     dt_cadastro = format_date(data_inicial)
     hoje = datetime.today()
-    mes_atual_prefix = f"{hoje.year}-{hoje.month:02d}"
+    mes_prefix = dt_cadastro[:7] if dt_cadastro else f"{hoje.year}-{hoje.month:02d}"
     
     records = []
     for _, row in df.iterrows():
@@ -240,9 +240,8 @@ def process_primeira_consulta_excel(file_path: str, cliente_id: str, data_inicia
                     rec[db_field] = str(val).strip() if not pd.isna(val) else None
         
         if rec.get("nome") and rec.get("data"):
-            # Desconsidera a data passada por parâmetro e filtra apenas pelo mês atual
-            if rec["data"].startswith(mes_atual_prefix):
+            if rec["data"].startswith(mes_prefix):
                 records.append(rec)
 
-    print(f"[PROCESSADOR] {len(records)} primeiras consultas extraídas (mês atual: {mes_atual_prefix}).")
+    print(f"[PROCESSADOR] {len(records)} primeiras consultas extraídas (mês referência: {mes_prefix}).")
     return records

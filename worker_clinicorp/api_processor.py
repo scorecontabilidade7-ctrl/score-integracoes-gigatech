@@ -58,16 +58,17 @@ def process_faturamento_json(json_data: dict, cliente_id: str, data_inicial: str
     return records
 
 
-def process_orcamentos_json(json_data: list, cliente_id: str) -> list:
+def process_orcamentos_json(json_data: list, cliente_id: str, data_inicial: str = None) -> list:
     """
     Processa a lista de orçamentos vinda da API.
-    Filtra apenas pelo mês atual.
+    Filtra pelo mês do período especificado (ou mês atual se não informado).
     """
     print("[API PROCESSADOR] Processando JSON de orçamentos...")
     records = []
     
+    dt_ref = _format_iso_date(data_inicial) if data_inicial else None
     hoje = datetime.today()
-    mes_atual_prefix = f"{hoje.year}-{hoje.month:02d}"
+    mes_prefix = dt_ref[:7] if dt_ref else f"{hoje.year}-{hoje.month:02d}"
 
     for item in json_data:
         rec = {"cliente_id": cliente_id}
@@ -100,25 +101,26 @@ def process_orcamentos_json(json_data: list, cliente_id: str) -> list:
         rec["observacoes"] = str(item.get("Notes")) if item.get("Notes") else None
         rec["como_conheceu"] = str(item.get("HowDidMeet")) if item.get("HowDidMeet") else None
 
-        # Validar inserção (tem pac/prof e é do mês atual)
+        # Validar inserção (tem pac/prof e pertence ao mês do período)
         if rec.get("paciente") or rec.get("profissional"):
-            if rec.get("data") and str(rec["data"]).startswith(mes_atual_prefix):
+            if rec.get("data") and str(rec["data"]).startswith(mes_prefix):
                 records.append(rec)
 
-    print(f"[API PROCESSADOR] {len(records)} orçamentos extraídos (mês atual: {mes_atual_prefix}).")
+    print(f"[API PROCESSADOR] {len(records)} orçamentos extraídos (mês referência: {mes_prefix}).")
     return records
 
 
 def process_primeiras_consultas_json(json_data: list, cliente_id: str, data_inicial: str) -> list:
     """
     Processa a lista de primeiras consultas vinda da API.
+    Filtra pelo mês do período especificado (ou mês atual se não informado).
     """
     print("[API PROCESSADOR] Processando JSON de primeiras consultas...")
     records = []
     
     dt_cadastro = _format_iso_date(data_inicial)
     hoje = datetime.today()
-    mes_atual_prefix = f"{hoje.year}-{hoje.month:02d}"
+    mes_prefix = dt_cadastro[:7] if dt_cadastro else f"{hoje.year}-{hoje.month:02d}"
     
     for item in json_data:
         rec = {
@@ -133,8 +135,9 @@ def process_primeiras_consultas_json(json_data: list, cliente_id: str, data_inic
         rec["observacoes"] = str(item.get("Notes")).strip() if item.get("Notes") else None
         
         if rec.get("nome") and rec.get("data"):
-            if str(rec["data"]).startswith(mes_atual_prefix):
+            if str(rec["data"]).startswith(mes_prefix):
                 records.append(rec)
 
-    print(f"[API PROCESSADOR] {len(records)} primeiras consultas extraídas (mês atual: {mes_atual_prefix}).")
+    print(f"[API PROCESSADOR] {len(records)} primeiras consultas extraídas (mês referência: {mes_prefix}).")
     return records
+
