@@ -94,8 +94,11 @@ def get_auth_token_and_agendamentos(cliente_config, data_inicial, data_final):
             btn_clinica.wait_for(state="visible", timeout=60000)
             safe_click(btn_clinica)
             
-            # Aguardar carregamento da área restrita
-            page.wait_for_timeout(5000)
+            # Aguardar o container principal carregar
+            print("[API SCRAPER] Aguardando tela principal carregar...")
+            main_screen = page.locator('xpath=//*[@id="show_screen_div"]')
+            main_screen.wait_for(state="visible", timeout=60000)
+            page.wait_for_timeout(3000)
 
             # Configurar download path via CDP session
             client = context.new_cdp_session(page)
@@ -109,31 +112,45 @@ def get_auth_token_and_agendamentos(cliente_config, data_inicial, data_final):
 
             # Navegar para Relatórios -> Agendamentos -> Geral
             print("[API SCRAPER] Navegando para Relatórios > Agendamentos > Geral...")
-            safe_click(page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[1]/ul/div[1]/li/div'))
-            page.wait_for_timeout(500)
+            try:
+                # Clica no menu lateral de Agendamentos
+                menu_agend = page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[1]/ul/div[1]/li/div | //li[contains(.,"Agendamentos")]//div').first
+                safe_click(menu_agend)
+                page.wait_for_timeout(1000)
 
-            # Clicar no item 'Geral' do menu de Agendamentos
-            safe_click(page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[1]/ul/div[1]/li/ul/li[6]/div/div/div | //*[@id="show_screen_div"]//text()[contains(.,"Geral")]/..'))
-            page.wait_for_timeout(2000)
+                # Clica no subitem Geral
+                btn_geral = page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[1]/ul/div[1]/li/ul/li[6]/div/div/div | //div[text()="Geral"] | //span[text()="Geral"]').first
+                safe_click(btn_geral)
+                page.wait_for_timeout(3000)
 
-            # Preencher datas no Agendamentos Geral
-            fill_date(page, "id=From", data_inicial)
-            fill_date(page, "id=To", data_final)
+                # Preencher datas no Agendamentos Geral
+                for f_id in ("id=From", "id=from", "id=periodFrom", "id=De", "id=de"):
+                    if page.locator(f_id).count() > 0:
+                        fill_date(page, f_id, data_inicial)
+                        break
+                
+                for t_id in ("id=To", "id=to", "id=periodTo", "id=Ate", "id=ate"):
+                    if page.locator(t_id).count() > 0:
+                        fill_date(page, t_id, data_final)
+                        break
 
-            # Clicar em Listar
-            safe_click(page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[2]/div/div[1]/button | button:has-text("Listar")'))
-            page.wait_for_timeout(4000)
+                # Clicar em Listar
+                btn_listar = page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[2]/div/div[1]/button | button:has-text("Listar")').first
+                safe_click(btn_listar)
+                page.wait_for_timeout(4000)
 
-            # Baixar Excel de Agendamentos Gerais
-            print("[API SCRAPER] Baixando planilha de Agendamentos Gerais...")
-            btn_down_geral = page.locator('xpath=//*[@id="show_screen_div"]//button[contains(@class, "download") or contains(@title, "Excel") or contains(@title, "Download") or .//span[contains(@class, "download")]] | button:has(svg), a:has(svg)').last
-            with page.expect_download(timeout=60000) as download_info:
-                safe_click(btn_down_geral)
+                # Baixar Excel de Agendamentos Gerais
+                print("[API SCRAPER] Baixando planilha de Agendamentos Gerais...")
+                btn_down_geral = page.locator('xpath=//*[@id="show_screen_div"]//button[contains(@class, "download") or contains(@title, "Excel") or contains(@title, "Download") or .//span[contains(@class, "download")]] | button:has(svg), a:has(svg)').last
+                with page.expect_download(timeout=60000) as download_info:
+                    safe_click(btn_down_geral)
 
-            agend_path = TMP_DIR / f"agendamentos_geral_{cliente_id}.xlsx"
-            shutil.copy(download_info.value.path(), agend_path)
-            agendamentos_file = str(agend_path)
-            print(f"[API SCRAPER] Arquivo de agendamentos salvo em {agendamentos_file}")
+                agend_path = TMP_DIR / f"agendamentos_geral_{cliente_id}.xlsx"
+                shutil.copy(download_info.value.path(), agend_path)
+                agendamentos_file = str(agend_path)
+                print(f"[API SCRAPER] Arquivo de agendamentos salvo em {agendamentos_file}")
+            except Exception as e:
+                print(f"[API SCRAPER] Erro detalhado ao extrair tela de Agendamentos Gerais: {e}")
 
         except Exception as e:
             print(f"[ERRO API SCRAPER] Falha na extração de agendamentos ou token: {e}")
