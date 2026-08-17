@@ -16,7 +16,7 @@ from database import (
     remove_duplicados_agendamentos_geral
 )
 from api_scraper import (
-    get_auth_token, 
+    get_auth_token_and_agendamentos, 
     fetch_faturamento, 
     fetch_orcamentos, 
     fetch_primeiras_consultas,
@@ -28,6 +28,7 @@ from api_processor import (
     process_primeiras_consultas_json,
     process_agendamentos_geral_json
 )
+from processor import process_agendamentos_geral_excel
 
 load_dotenv()
 
@@ -73,7 +74,7 @@ def main():
         print("-"*50)
         
         try:
-            token = get_auth_token(cliente)
+            token, agendamentos_excel = get_auth_token_and_agendamentos(cliente, data_inicial, data_final)
             if not token:
                 print(f"[ERRO] Não foi possível obter token para {nome_loja}. Pulando...")
                 continue
@@ -122,13 +123,20 @@ def main():
         # 4. Agendamentos Gerais
         try:
             print("\n--- Processando Agendamentos Gerais ---")
-            json_agend = fetch_agendamentos_geral(token, data_inicial, data_final)
-            if json_agend:
+            if agendamentos_excel:
                 clean_agendamentos_geral(cid, data_inicial, data_final)
-                records_agend = process_agendamentos_geral_json(json_agend, cid, data_inicial)
+                records_agend = process_agendamentos_geral_excel(agendamentos_excel, cid, data_inicial)
                 if records_agend:
                     batch_insert("clinicorp_agendamentos_geral", records_agend)
                     remove_duplicados_agendamentos_geral()
+            else:
+                json_agend = fetch_agendamentos_geral(token, data_inicial, data_final)
+                if json_agend:
+                    clean_agendamentos_geral(cid, data_inicial, data_final)
+                    records_agend = process_agendamentos_geral_json(json_agend, cid, data_inicial)
+                    if records_agend:
+                        batch_insert("clinicorp_agendamentos_geral", records_agend)
+                        remove_duplicados_agendamentos_geral()
         except Exception as e:
             print(f"[ERRO] Falha ao processar agendamentos gerais de {nome_loja}: {e}")
             
