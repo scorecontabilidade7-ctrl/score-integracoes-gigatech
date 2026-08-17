@@ -191,9 +191,54 @@ def extrair_dados(cliente_config, data_inicial, data_final):
                 consultas_path = TMP_DIR / f"consultas_{cliente_id}.xlsx"
                 shutil.copy(download_info_3.value.path(), consultas_path)
                 arquivos["primeira_consulta_excel"] = str(consultas_path)
-            except Exception:
-                print("[SCRAPER] Nenhum dado de Primeiras Consultas encontrado neste período (tabela vazia).")
-            
+            # 4. DOWNLOAD AGENDAMENTOS GERAIS
+            print("[SCRAPER] Navegando para Agendamentos Gerais...")
+            try:
+                # Abrir menu de Agendamentos caso fechado e clicar em Geral
+                menu_agendamentos = page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[1]/ul/div[1]/li/div')
+                if menu_agendamentos.count() > 0:
+                    safe_click(menu_agendamentos)
+                    page.wait_for_timeout(500)
+                
+                # Clicar no item 'Geral'
+                btn_geral = page.locator('text="Geral"').first
+                safe_click(btn_geral)
+                page.wait_for_timeout(2000)
+
+                # Preencher datas (tenta seletores comuns: id=From / id=from / id=periodFrom)
+                for f_id in ("id=From", "id=from", "id=periodFrom", "id=De", "id=de"):
+                    if page.locator(f_id).count() > 0:
+                        fill_date(page, f_id, data_inicial)
+                        break
+                
+                for t_id in ("id=To", "id=to", "id=periodTo", "id=Ate", "id=ate"):
+                    if page.locator(t_id).count() > 0:
+                        fill_date(page, t_id, data_final)
+                        break
+
+                # Clicar em Listar
+                btn_listar = page.locator('button:has-text("Listar"), button:has-text("Filtrar")').first
+                if btn_listar.count() > 0:
+                    safe_click(btn_listar)
+                    page.wait_for_timeout(4000)
+
+                # Baixar Excel de Agendamentos Gerais
+                print("[SCRAPER] Baixando Agendamentos Gerais.xlsx...")
+                btn_down_geral = page.locator('xpath=//button[contains(@class, "download") or contains(@title, "Excel") or contains(@title, "Download") or .//span[contains(@class, "download")]] | //div[contains(@class, "table")]//button[1]').last
+                
+                # Procura botão de download próximo à tabela
+                with page.expect_download(timeout=60000) as download_info_4:
+                    # Tenta clicar no botão de exportar
+                    export_btn = page.locator('button:has(svg), a:has(svg)').filter(has_text="").last
+                    safe_click(export_btn)
+
+                agendamentos_path = TMP_DIR / f"agendamentos_geral_{cliente_id}.xlsx"
+                shutil.copy(download_info_4.value.path(), agendamentos_path)
+                arquivos["agendamentos_geral_excel"] = str(agendamentos_path)
+                print("[SCRAPER] Agendamentos Gerais baixado com sucesso!")
+            except Exception as e:
+                print(f"[SCRAPER] Aviso: Não foi possível baixar Agendamentos Gerais: {e}")
+
             print("[SCRAPER] Todos os arquivos foram baixados com sucesso!")
 
         except Exception as e:

@@ -245,3 +245,75 @@ def process_primeira_consulta_excel(file_path: str, cliente_id: str, data_inicia
 
     print(f"[PROCESSADOR] {len(records)} primeiras consultas extraídas (mês referência: {mes_prefix}).")
     return records
+
+
+def process_agendamentos_geral_excel(file_path: str, cliente_id: str, data_inicial: str = None) -> list:
+    """
+    Processa o arquivo Agendamentos Gerais.xlsx.
+    """
+    print(f"[PROCESSADOR] Processando agendamentos gerais: {file_path}")
+    if not Path(file_path).exists():
+        print(f"[PROCESSADOR] [ERRO] Arquivo não encontrado: {file_path}")
+        return []
+
+    try:
+        df = pd.read_excel(file_path)
+    except Exception as e:
+        print(f"[PROCESSADOR] [ERRO] Falha ao ler Excel de agendamentos gerais: {e}")
+        return []
+
+    if df.empty:
+        return []
+
+    df.columns = [normalize_column_name(col) for col in df.columns]
+
+    col_mapping = {
+        "data": "data",
+        "nome": "paciente",
+        "paciente": "paciente",
+        "contato": "contato",
+        "telefone": "contato",
+        "horario": "horario",
+        "horário": "horario",
+        "agendado_por": "agendado_por",
+        "profissional": "profissional",
+        "dentista": "profissional",
+        "status": "status",
+        "categoria": "categoria",
+        "plano": "plano"
+    }
+
+    dt_ref = format_date(data_inicial) if data_inicial else None
+    hoje = datetime.today()
+    mes_prefix = dt_ref[:7] if dt_ref else f"{hoje.year}-{hoje.month:02d}"
+
+    records = []
+    for _, row in df.iterrows():
+        rec = {"cliente_id": cliente_id}
+
+        for col_name in df.columns:
+            db_field = col_mapping.get(col_name)
+            if db_field:
+                val = row[col_name]
+                if db_field == "data":
+                    rec[db_field] = format_date(val)
+                elif db_field == "contato":
+                    rec[db_field] = format_phone(val)
+                else:
+                    rec[db_field] = str(val).strip() if not pd.isna(val) else None
+
+        # Identificar tipo de registro (Compromisso vs Agendamento)
+        status_val = rec.get("status") or ""
+        cat_val = rec.get("categoria") or ""
+        if "COMPROMISSO" in status_val.upper() or "COMPROMISSO" in cat_val.upper():
+            rec["tipo_registro"] = "Compromisso"
+        else:
+            rec["tipo_registro"] = "Agendamento"
+
+        # Validação: precisa ter data e (paciente ou horário ou status)
+        if rec.get("data") and (rec.get("paciente") or rec.get("status")):
+            records.append(rec)
+
+    print(f"[PROCESSADOR] {len(records)} agendamentos gerais extraídos.")
+    return records
+

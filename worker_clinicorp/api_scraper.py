@@ -97,3 +97,23 @@ def fetch_primeiras_consultas(token, data_inicial, data_final):
     resp = requests.get(url, headers=headers)
     resp.raise_for_status()
     return resp.json().get("list", [])
+
+def fetch_agendamentos_geral(token, data_inicial, data_final):
+    d_ini = _format_date_for_api(data_inicial)
+    d_fim = _format_date_for_api(data_final)
+    url = f"https://api.clinicorp.com/solution/api/reports/appointment/general?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport"
+    
+    print(f"[API SCRAPER] Buscando Agendamentos Gerais ({d_ini} a {d_fim})...")
+    headers = {
+        "Authorization": token,
+        "Accept": "application/json"
+    }
+    try:
+        resp = requests.get(url, headers=headers)
+        if resp.status_code == 200:
+            res_json = resp.json()
+            return res_json.get("list", res_json if isinstance(res_json, list) else [])
+    except Exception as e:
+        print(f"[API SCRAPER] Aviso ao buscar API de agendamentos gerais: {e}")
+    return []
+

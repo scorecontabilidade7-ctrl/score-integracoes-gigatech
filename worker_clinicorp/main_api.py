@@ -10,19 +10,23 @@ from database import (
     clean_faturamento,
     clean_orcamentos,
     clean_primeiras_consultas,
+    clean_agendamentos_geral,
     remove_duplicados_orcamentos,
-    remove_duplicados_primeiras_consultas
+    remove_duplicados_primeiras_consultas,
+    remove_duplicados_agendamentos_geral
 )
 from api_scraper import (
     get_auth_token, 
     fetch_faturamento, 
     fetch_orcamentos, 
-    fetch_primeiras_consultas
+    fetch_primeiras_consultas,
+    fetch_agendamentos_geral
 )
 from api_processor import (
     process_faturamento_json, 
     process_orcamentos_json, 
-    process_primeiras_consultas_json
+    process_primeiras_consultas_json,
+    process_agendamentos_geral_json
 )
 
 load_dotenv()
@@ -114,6 +118,19 @@ def main():
                     remove_duplicados_primeiras_consultas()
         except Exception as e:
             print(f"[ERRO] Falha ao processar primeiras consultas de {nome_loja}: {e}")
+
+        # 4. Agendamentos Gerais
+        try:
+            print("\n--- Processando Agendamentos Gerais ---")
+            json_agend = fetch_agendamentos_geral(token, data_inicial, data_final)
+            if json_agend:
+                clean_agendamentos_geral(cid, data_inicial, data_final)
+                records_agend = process_agendamentos_geral_json(json_agend, cid, data_inicial)
+                if records_agend:
+                    batch_insert("clinicorp_agendamentos_geral", records_agend)
+                    remove_duplicados_agendamentos_geral()
+        except Exception as e:
+            print(f"[ERRO] Falha ao processar agendamentos gerais de {nome_loja}: {e}")
             
         print(f"[CLIENTE] Concluído para: {nome_loja}")
 

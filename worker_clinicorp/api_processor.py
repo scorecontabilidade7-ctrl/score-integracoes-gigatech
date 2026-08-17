@@ -141,3 +141,44 @@ def process_primeiras_consultas_json(json_data: list, cliente_id: str, data_inic
     print(f"[API PROCESSADOR] {len(records)} primeiras consultas extraídas (mês referência: {mes_prefix}).")
     return records
 
+
+def process_agendamentos_geral_json(json_data: list, cliente_id: str, data_inicial: str = None) -> list:
+    """
+    Processa a lista de agendamentos gerais vinda da API.
+    """
+    print("[API PROCESSADOR] Processando JSON de agendamentos gerais...")
+    records = []
+
+    dt_ref = _format_iso_date(data_inicial) if data_inicial else None
+    hoje = datetime.today()
+    mes_prefix = dt_ref[:7] if dt_ref else f"{hoje.year}-{hoje.month:02d}"
+
+    for item in json_data:
+        rec = {"cliente_id": cliente_id}
+
+        rec["data"] = _format_iso_date(item.get("date") or item.get("Date") or item.get("CreateDate") or item.get("appointment_date"))
+        rec["paciente"] = item.get("PatientName") or item.get("patient_name") or item.get("name")
+        rec["contato"] = str(item.get("MobilePhone") or item.get("phone") or item.get("contact") or "").strip() or None
+        rec["horario"] = str(item.get("time") or item.get("ScheduleTime") or item.get("hour") or "").strip() or None
+        rec["agendado_por"] = item.get("CreatedByName") or item.get("scheduled_by")
+        rec["profissional"] = item.get("DentistName") or item.get("professional_name") or item.get("dentist")
+        rec["status"] = str(item.get("StatusDescription") or item.get("status") or item.get("Status") or "").strip() or None
+        rec["categoria"] = str(item.get("CategoryDescription") or item.get("category") or "").strip() or None
+        rec["plano"] = str(item.get("HealthPlan") or item.get("plan") or "Particular").strip() or None
+
+        # Identificar tipo_registro (Compromisso vs Agendamento)
+        status_val = rec.get("status") or ""
+        cat_val = rec.get("categoria") or ""
+        if "COMPROMISSO" in status_val.upper() or "COMPROMISSO" in cat_val.upper():
+            rec["tipo_registro"] = "Compromisso"
+        else:
+            rec["tipo_registro"] = "Agendamento"
+
+        if rec.get("data") and (rec.get("paciente") or rec.get("status")):
+            if rec["data"].startswith(mes_prefix):
+                records.append(rec)
+
+    print(f"[API PROCESSADOR] {len(records)} agendamentos gerais extraídos (mês referência: {mes_prefix}).")
+    return records
+
+

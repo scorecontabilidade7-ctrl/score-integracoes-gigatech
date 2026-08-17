@@ -115,3 +115,24 @@ def remove_duplicados_primeiras_consultas():
         supabase.rpc("remove_duplicados_clinicorp_primeiras_consultas").execute()
     except Exception as e:
         print(f"[ERRO] Falha ao remover duplicados de primeiras consultas: {e}")
+
+def clean_agendamentos_geral(cliente_id: str, data_inicial: str, data_final: str):
+    dt_ini, dt_fim, _ = parse_dates(data_inicial, data_final)
+    print(f"[BD] Limpando agendamentos gerais de {dt_ini} a {dt_fim} via RPC...")
+    try:
+        supabase.rpc("delete_clinicorp_agendamentos_geral", {
+            "p_cliente_id": cliente_id,
+            "p_dt_ini": dt_ini,
+            "p_dt_fim": dt_fim
+        }).execute()
+    except Exception as e:
+        print(f"[ERRO] Falha ao limpar agendamentos gerais: {e}")
+        raise e
+
+def remove_duplicados_agendamentos_geral():
+    print("[BD] Removendo agendamentos gerais duplicados via RPC...")
+    try:
+        supabase.rpc("remove_duplicados_clinicorp_agendamentos_geral").execute()
+    except Exception as e:
+        print(f"[ERRO] Falha ao remover duplicados de agendamentos gerais: {e}")
+

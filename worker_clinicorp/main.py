@@ -9,7 +9,8 @@ from scraper import extrair_dados, TMP_DIR
 from processor import (
     process_faturamento_excel,
     process_orcamentos_excel,
-    process_primeira_consulta_excel
+    process_primeira_consulta_excel,
+    process_agendamentos_geral_excel
 )
 
 load_dotenv()
@@ -81,8 +82,10 @@ def main():
             clean_faturamento,
             clean_orcamentos,
             clean_primeiras_consultas,
+            clean_agendamentos_geral,
             remove_duplicados_orcamentos,
-            remove_duplicados_primeiras_consultas
+            remove_duplicados_primeiras_consultas,
+            remove_duplicados_agendamentos_geral
         )
 
         faturamento_file = arquivos.get("faturamento_excel")
@@ -122,6 +125,17 @@ def main():
                     remove_duplicados_primeiras_consultas()
             except Exception as e:
                 print(f"[ERRO] Falha ao limpar/processar primeiras consultas do cliente {nome_loja}: {e}")
+
+        agendamentos_file = arquivos.get("agendamentos_geral_excel")
+        if agendamentos_file:
+            try:
+                clean_agendamentos_geral(cid, data_ini_mes, data_fim_mes)
+                agendamentos_records = process_agendamentos_geral_excel(agendamentos_file, cid, data_inicial)
+                if agendamentos_records:
+                    batch_insert("clinicorp_agendamentos_geral", agendamentos_records)
+                    remove_duplicados_agendamentos_geral()
+            except Exception as e:
+                print(f"[ERRO] Falha ao limpar/processar agendamentos gerais do cliente {nome_loja}: {e}")
         
         print(f"[CLIENTE] Processamento concluído para: {nome_loja}")
 
