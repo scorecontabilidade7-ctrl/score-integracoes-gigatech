@@ -79,71 +79,68 @@ def get_auth_token_and_agendamentos(cliente_config, data_inicial, data_final):
             page.fill('xpath=//*[@id="login-username-input"]', user)
             page.fill('xpath=//*[@id="login-password-input"]', pwd)
             
-            # Clicar em Entrar
-            btn_login = page.locator('xpath=//*[@id="app"]/div[2]/div/div/div[1]/div/div[2]/div/div/button[1]')
-            btn_login.click()
-            
             print("[API SCRAPER] Aguardando requisição com Bearer Token...")
             with page.expect_request(
                 lambda req: "authorization" in req.headers and "Bearer" in req.headers["authorization"], 
                 timeout=45000
             ) as auth_req:
+                safe_click(page.locator('xpath=//*[@id="app"]/div[2]/div/div/div[1]/div/div[2]/div/div/button[1]'))
                 token = auth_req.value.headers["authorization"]
                 print("[API SCRAPER] Token capturado com sucesso!")
 
-            # Clicar na clínica/unidade se necessário
-            page.wait_for_timeout(3000)
-            try:
-                btn_clinica = page.locator('xpath=//*[@id="shell-root"]/div/div/main/div/section/button[5] | //button[contains(.,"Clinic")] | //button[contains(.,"Unidade")]')
-                if btn_clinica.count() > 0:
-                    btn_clinica.first.click(timeout=10000)
-                    page.wait_for_timeout(3000)
-            except Exception:
-                pass
+            # Aguardar e clicar no botão da clínica/unidade
+            print("[API SCRAPER] Selecionando unidade/clínica...")
+            btn_clinica = page.locator('xpath=//*[@id="shell-root"]/div/div/main/div/section/button[5]')
+            btn_clinica.wait_for(state="visible", timeout=60000)
+            safe_click(btn_clinica)
+            
+            # Aguardar carregamento da área restrita
+            page.wait_for_timeout(5000)
+
+            # Configurar download path via CDP session
+            client = context.new_cdp_session(page)
+            client.send(
+                "Browser.setDownloadBehavior",
+                {
+                    "behavior": "allow",
+                    "downloadPath": str(TMP_DIR.resolve())
+                }
+            )
 
             # Navegar para Relatórios -> Agendamentos -> Geral
-            try:
-                print("[API SCRAPER] Navegando para Relatórios > Agendamentos > Geral...")
-                menu_agend = page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[1]/ul/div[1]/li/div | text="Agendamentos"').first
-                if menu_agend.count() > 0:
-                    safe_click(menu_agend)
-                    page.wait_for_timeout(1000)
+            print("[API SCRAPER] Navegando para Relatórios > Agendamentos > Geral...")
+            safe_click(page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[1]/ul/div[1]/li/div'))
+            page.wait_for_timeout(500)
 
-                btn_geral = page.locator('text="Geral"').first
-                if btn_geral.count() > 0:
-                    safe_click(btn_geral)
-                    page.wait_for_timeout(2000)
+            # Clicar no item 'Geral' do menu de Agendamentos
+            safe_click(page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[1]/ul/div[1]/li/ul/li[6]/div/div/div | //*[@id="show_screen_div"]//text()[contains(.,"Geral")]/..'))
+            page.wait_for_timeout(2000)
 
-                for f_id in ("id=From", "id=from", "id=periodFrom", "id=De", "id=de"):
-                    if page.locator(f_id).count() > 0:
-                        fill_date(page, f_id, data_inicial)
-                        break
-                
-                for t_id in ("id=To", "id=to", "id=periodTo", "id=Ate", "id=ate"):
-                    if page.locator(t_id).count() > 0:
-                        fill_date(page, t_id, data_final)
-                        break
+            # Preencher datas no Agendamentos Geral
+            fill_date(page, "id=From", data_inicial)
+            fill_date(page, "id=To", data_final)
 
-                btn_listar = page.locator('button:has-text("Listar"), button:has-text("Filtrar")').first
-                if btn_listar.count() > 0:
-                    safe_click(btn_listar)
-                    page.wait_for_timeout(4000)
+            # Clicar em Listar
+            safe_click(page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[2]/div/div[1]/button | button:has-text("Listar")'))
+            page.wait_for_timeout(4000)
 
-                print("[API SCRAPER] Baixando planilha de Agendamentos Gerais...")
-                with page.expect_download(timeout=60000) as download_info:
-                    export_btn = page.locator('button:has(svg), a:has(svg), button.btn-outline-primary').last
-                    safe_click(export_btn)
+            # Baixar Excel de Agendamentos Gerais
+            print("[API SCRAPER] Baixando planilha de Agendamentos Gerais...")
+            btn_down_geral = page.locator('xpath=//*[@id="show_screen_div"]//button[contains(@class, "download") or contains(@title, "Excel") or contains(@title, "Download") or .//span[contains(@class, "download")]] | button:has(svg), a:has(svg)').last
+            with page.expect_download(timeout=60000) as download_info:
+                safe_click(btn_down_geral)
 
-                agend_path = TMP_DIR / f"agendamentos_geral_{cliente_id}.xlsx"
-                shutil.copy(download_info.value.path(), agend_path)
-                agendamentos_file = str(agend_path)
-                print(f"[API SCRAPER] Arquivo de agendamentos salvo em {agendamentos_file}")
-            except Exception as e:
-                print(f"[API SCRAPER] Aviso ao baixar planilha de Agendamentos Gerais: {e}")
+            agend_path = TMP_DIR / f"agendamentos_geral_{cliente_id}.xlsx"
+            shutil.copy(download_info.value.path(), agend_path)
+            agendamentos_file = str(agend_path)
+            print(f"[API SCRAPER] Arquivo de agendamentos salvo em {agendamentos_file}")
 
         except Exception as e:
-            print(f"[ERRO API SCRAPER] Falha no login ou extração: {e}")
-            raise e
+            print(f"[ERRO API SCRAPER] Falha na extração de agendamentos ou token: {e}")
+            try:
+                page.screenshot(path=str(TMP_DIR / "error_api_scraper.png"), full_page=True)
+            except:
+                pass
         finally:
             context.close()
             browser.close()
