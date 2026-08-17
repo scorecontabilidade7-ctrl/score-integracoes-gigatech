@@ -90,18 +90,26 @@ def get_auth_token_and_agendamentos(cliente_config, data_inicial, data_final):
 
             # Aguardar e clicar no botão da clínica/unidade
             print("[API SCRAPER] Selecionando unidade/clínica...")
-            btn_clinica = page.locator('xpath=//*[@id="shell-root"]/div/div/main/div/section/button[5]')
+            btn_clinica = page.locator('xpath=//*[@id="shell-root"]/div/div/main/div/section/button[5] | //section//button').first
             btn_clinica.wait_for(state="visible", timeout=60000)
-            safe_click(btn_clinica)
             
-            # Aguardar o container principal carregar
-            print("[API SCRAPER] Aguardando tela principal carregar...")
-            main_screen = page.locator('xpath=//*[@id="show_screen_div"]')
-            main_screen.wait_for(state="visible", timeout=60000)
-            page.wait_for_timeout(3000)
+            app_page = page
+            try:
+                with context.expect_page(timeout=5000) as new_page_info:
+                    safe_click(btn_clinica)
+                app_page = new_page_info.value
+                print("[API SCRAPER] Nova aba de clínica detectada!")
+            except Exception:
+                pass
+
+            if len(context.pages) > 1:
+                app_page = context.pages[-1]
+
+            app_page.wait_for_load_state("domcontentloaded", timeout=60000)
+            app_page.wait_for_timeout(5000)
 
             # Configurar download path via CDP session
-            client = context.new_cdp_session(page)
+            client = context.new_cdp_session(app_page)
             client.send(
                 "Browser.setDownloadBehavior",
                 {
@@ -113,42 +121,49 @@ def get_auth_token_and_agendamentos(cliente_config, data_inicial, data_final):
             # Navegar para Relatórios -> Agendamentos -> Geral
             print("[API SCRAPER] Navegando para Relatórios > Agendamentos > Geral...")
             try:
+                # Clica em Relatórios caso visível
+                btn_relatorios = app_page.locator('text="Relatórios"').first
+                if btn_relatorios.count() > 0:
+                    safe_click(btn_relatorios)
+                    app_page.wait_for_timeout(1000)
+
                 # Clica no menu lateral de Agendamentos
-                menu_agend = page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[1]/ul/div[1]/li/div | //li[contains(.,"Agendamentos")]//div').first
-                safe_click(menu_agend)
-                page.wait_for_timeout(1000)
+                menu_agend = app_page.locator('text="Agendamentos"').first
+                if menu_agend.count() > 0:
+                    safe_click(menu_agend)
+                    app_page.wait_for_timeout(1000)
 
                 # Clica no subitem Geral
-                btn_geral = page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[1]/ul/div[1]/li/ul/li[6]/div/div/div | //div[text()="Geral"] | //span[text()="Geral"]').first
+                btn_geral = app_page.locator('text="Geral"').first
                 safe_click(btn_geral)
-                page.wait_for_timeout(3000)
+                app_page.wait_for_timeout(3000)
 
                 # Preencher datas no Agendamentos Geral
                 for f_id in ("id=From", "id=from", "id=periodFrom", "id=De", "id=de"):
-                    if page.locator(f_id).count() > 0:
-                        fill_date(page, f_id, data_inicial)
+                    if app_page.locator(f_id).count() > 0:
+                        fill_date(app_page, f_id, data_inicial)
                         break
                 
                 for t_id in ("id=To", "id=to", "id=periodTo", "id=Ate", "id=ate"):
-                    if page.locator(t_id).count() > 0:
-                        fill_date(page, t_id, data_final)
+                    if app_page.locator(t_id).count() > 0:
+                        fill_date(app_page, t_id, data_final)
                         break
 
                 # Clicar em Listar
-                btn_listar = page.locator('xpath=//*[@id="show_screen_div"]/div/div/div[2]/div/div[1]/button | button:has-text("Listar")').first
+                btn_listar = app_page.locator('button:has-text("Listar"), button:has-text("Filtrar")').first
                 safe_click(btn_listar)
-                page.wait_for_timeout(4000)
+                app_page.wait_for_timeout(5000)
 
                 # Baixar Excel de Agendamentos Gerais
                 print("[API SCRAPER] Baixando planilha de Agendamentos Gerais...")
-                btn_down_geral = page.locator('xpath=//*[@id="show_screen_div"]//button[contains(@class, "download") or contains(@title, "Excel") or contains(@title, "Download") or .//span[contains(@class, "download")]] | button:has(svg), a:has(svg)').last
-                with page.expect_download(timeout=60000) as download_info:
+                btn_down_geral = app_page.locator('button:has(svg), a:has(svg), button.btn-outline-primary').last
+                with app_page.expect_download(timeout=60000) as download_info:
                     safe_click(btn_down_geral)
 
                 agend_path = TMP_DIR / f"agendamentos_geral_{cliente_id}.xlsx"
                 shutil.copy(download_info.value.path(), agend_path)
                 agendamentos_file = str(agend_path)
-                print(f"[API SCRAPER] Arquivo de agendamentos salvo em {agendamentos_file}")
+                print(f"[API SCRAPER] Arquivo de agendamentos salvo com sucesso em {agendamentos_file}")
             except Exception as e:
                 print(f"[API SCRAPER] Erro detalhado ao extrair tela de Agendamentos Gerais: {e}")
 
