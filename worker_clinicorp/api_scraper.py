@@ -234,19 +234,39 @@ def fetch_primeiras_consultas(token, data_inicial, data_final):
 def fetch_agendamentos_geral(token, data_inicial, data_final):
     d_ini = _format_date_for_api(data_inicial)
     d_fim = _format_date_for_api(data_final)
-    url = f"https://api.clinicorp.com/solution/api/reports/appointment/general?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport"
     
-    print(f"[API SCRAPER] Buscando Agendamentos Gerais ({d_ini} a {d_fim})...")
     headers = {
         "Authorization": token,
         "Accept": "application/json"
     }
-    try:
-        resp = requests.get(url, headers=headers)
-        if resp.status_code == 200:
-            res_json = resp.json()
-            return res_json.get("list", res_json if isinstance(res_json, list) else [])
-    except Exception as e:
-        print(f"[API SCRAPER] Aviso ao buscar API de agendamentos gerais: {e}")
+
+    candidates = [
+        f"https://api.clinicorp.com/solution/api/reports/appointment/list?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport",
+        f"https://api.clinicorp.com/solution/api/reports/appointment/general?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport",
+        f"https://api.clinicorp.com/solution/api/reports/appointment/all?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport",
+        f"https://api.clinicorp.com/solution/api/appointment/list?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport",
+        f"https://api.clinicorp.com/solution/api/treatment/list_appointments?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport",
+        f"https://api.clinicorp.com/solution/api/reports/appointment/schedule?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport",
+        f"https://api.clinicorp.com/solution/api/reports/appointment/appointments?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport",
+        f"https://api.clinicorp.com/solution/api/reports/appointment/overview?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport",
+        f"https://api.clinicorp.com/solution/api/reports/appointment?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport",
+        f"https://api.clinicorp.com/solution/api/schedule/list?from={d_ini}&to={d_fim}&status=ALL&_AccessPath=*.Appointment.RunGeneralReport"
+    ]
+
+    for url in candidates:
+        try:
+            short_url = url.split("?")[0]
+            print(f"[API SCRAPER] Testando endpoint: {short_url} ...")
+            resp = requests.get(url, headers=headers)
+            print(f"[API SCRAPER] Endpoint {short_url} -> Status {resp.status_code}")
+            if resp.status_code == 200:
+                data = resp.json()
+                items = data.get("list", data if isinstance(data, list) else [])
+                if items:
+                    print(f"[API SCRAPER] SUCESSO! {len(items)} agendamentos gerais encontrados via API!")
+                    return items
+        except Exception as e:
+            print(f"[API SCRAPER] Erro ao testar {url.split('?')[0]}: {e}")
+
     return []
 
