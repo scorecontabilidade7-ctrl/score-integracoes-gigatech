@@ -275,7 +275,6 @@ def process_agendamentos_geral_excel(file_path: str, cliente_id: str, data_inici
         "telefone": "contato",
         "horario": "horario",
         "horário": "horario",
-        "agendado_por": "agendado_por",
         "profissional": "profissional",
         "dentista": "profissional",
         "status": "status",
@@ -302,16 +301,8 @@ def process_agendamentos_geral_excel(file_path: str, cliente_id: str, data_inici
                 else:
                     rec[db_field] = str(val).strip() if not pd.isna(val) else None
 
-        # Identificar tipo de registro (Compromisso vs Agendamento)
-        status_val = rec.get("status") or ""
-        cat_val = rec.get("categoria") or ""
-        if "COMPROMISSO" in status_val.upper() or "COMPROMISSO" in cat_val.upper():
-            rec["tipo_registro"] = "Compromisso"
-        else:
-            rec["tipo_registro"] = "Agendamento"
-
         # Validação: precisa ter data e (paciente ou horário ou status)
-        if rec.get("data") and (rec.get("paciente") or rec.get("status")):
+        if rec.get("data") and (rec.get("paciente") or rec.get("status") or rec.get("horario")):
             records.append(rec)
 
     print(f"[PROCESSADOR] {len(records)} agendamentos gerais extraídos.")

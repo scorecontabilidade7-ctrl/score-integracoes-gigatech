@@ -10,6 +10,9 @@ def _format_iso_date(date_str):
     if "T" in val_date:
         val_date = val_date.split("T")[0]
         
+    if len(val_date) == 8 and val_date.isdigit():
+        return f"{val_date[:4]}-{val_date[4:6]}-{val_date[6:8]}"
+
     for fmt in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
         try:
             return datetime.strptime(val_date, fmt).date().isoformat()
@@ -142,43 +145,43 @@ def process_primeiras_consultas_json(json_data: list, cliente_id: str, data_inic
     return records
 
 
-def process_agendamentos_geral_json(json_data: list, cliente_id: str, data_inicial: str = None) -> list:
+def process_agendamentos_geral_json(json_data: list, cliente_id: str, data_inicial: str = None, data_final: str = None) -> list:
     """
     Processa a lista de agendamentos gerais vinda da API.
     """
     print("[API PROCESSADOR] Processando JSON de agendamentos gerais...")
     records = []
 
-    dt_ref = _format_iso_date(data_inicial) if data_inicial else None
+    dt_ini = _format_iso_date(data_inicial) if data_inicial else None
+    dt_fim = _format_iso_date(data_final) if data_final else None
     hoje = datetime.today()
-    mes_prefix = dt_ref[:7] if dt_ref else f"{hoje.year}-{hoje.month:02d}"
+    mes_prefix = dt_ini[:7] if dt_ini else f"{hoje.year}-{hoje.month:02d}"
 
     for item in json_data:
         rec = {"cliente_id": cliente_id}
 
-        rec["data"] = _format_iso_date(item.get("date") or item.get("Date") or item.get("CreateDate") or item.get("appointment_date"))
-        rec["paciente"] = item.get("PatientName") or item.get("patient_name") or item.get("name")
-        rec["contato"] = str(item.get("MobilePhone") or item.get("phone") or item.get("contact") or "").strip() or None
-        rec["horario"] = str(item.get("time") or item.get("ScheduleTime") or item.get("hour") or "").strip() or None
-        rec["agendado_por"] = item.get("CreatedByName") or item.get("scheduled_by")
-        rec["profissional"] = item.get("DentistName") or item.get("professional_name") or item.get("dentist")
+        raw_date = item.get("date") or item.get("Date") or item.get("AtomicDate") or item.get("CreateDate") or item.get("appointment_date")
+        rec["data"] = _format_iso_date(raw_date)
+        rec["id_agendamento"] = str(item.get("id") or item.get("AppointmentId") or "").strip() or None
+        rec["paciente"] = (item.get("PatientName") or item.get("patient_name") or item.get("Name") or item.get("name") or "").strip() or None
+        rec["contato"] = str(item.get("MobilePhone") or item.get("phone") or item.get("Email") or item.get("contact") or "").strip() or None
+        rec["horario"] = str(item.get("fromTime") or item.get("time") or item.get("ScheduleTime") or item.get("hour") or "").strip() or None
+        rec["profissional"] = (item.get("UserName") or item.get("DentistName") or item.get("professional_name") or item.get("dentist") or "").strip() or None
         rec["status"] = str(item.get("StatusDescription") or item.get("status") or item.get("Status") or "").strip() or None
         rec["categoria"] = str(item.get("CategoryDescription") or item.get("category") or "").strip() or None
-        rec["plano"] = str(item.get("HealthPlan") or item.get("plan") or "Particular").strip() or None
+        rec["plano"] = str(item.get("HealthPlan") or item.get("plan") or "Particular").strip() or "Particular"
 
-        # Identificar tipo_registro (Compromisso vs Agendamento)
-        status_val = rec.get("status") or ""
-        cat_val = rec.get("categoria") or ""
-        if "COMPROMISSO" in status_val.upper() or "COMPROMISSO" in cat_val.upper():
-            rec["tipo_registro"] = "Compromisso"
-        else:
-            rec["tipo_registro"] = "Agendamento"
-
-        if rec.get("data") and (rec.get("paciente") or rec.get("status")):
-            if rec["data"].startswith(mes_prefix):
+        if rec.get("data") and (rec.get("paciente") or rec.get("status") or rec.get("horario")):
+            if dt_ini and dt_fim:
+                if dt_ini <= rec["data"] <= dt_fim:
+                    records.append(rec)
+            elif dt_ini:
+                if rec["data"].startswith(mes_prefix):
+                    records.append(rec)
+            else:
                 records.append(rec)
 
-    print(f"[API PROCESSADOR] {len(records)} agendamentos gerais extraídos (mês referência: {mes_prefix}).")
+    print(f"[API PROCESSADOR] {len(records)} agendamentos gerais extraídos.")
     return records
 
 

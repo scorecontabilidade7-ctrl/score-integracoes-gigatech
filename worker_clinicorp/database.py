@@ -1,8 +1,10 @@
 import os
-from supabase import create_client, Client
-from dotenv import load_dotenv
+from pathlib import Path
 from datetime import datetime
+from dotenv import load_dotenv
+from supabase import create_client, Client
 
+load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")

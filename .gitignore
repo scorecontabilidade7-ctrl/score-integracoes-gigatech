@@ -154,5 +154,9 @@ out/
 # TEMPORARY AUTOMATION DIRS
 # =========================
 worker_gigatech/tmp_downloads/
+worker_clinicorp/tmp_downloads/
 tmp_debug/
+*.xlsx
+*.xls
+*_raw.json
 

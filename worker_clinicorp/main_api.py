@@ -125,7 +125,7 @@ def main():
             json_agend = fetch_agendamentos_geral(token, data_inicial, data_final)
             if json_agend:
                 clean_agendamentos_geral(cid, data_inicial, data_final)
-                records_agend = process_agendamentos_geral_json(json_agend, cid, data_inicial)
+                records_agend = process_agendamentos_geral_json(json_agend, cid, data_inicial, data_final)
                 if records_agend:
                     batch_insert("clinicorp_agendamentos_geral", records_agend)
                     remove_duplicados_agendamentos_geral()
