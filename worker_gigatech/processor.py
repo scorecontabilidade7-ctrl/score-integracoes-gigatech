@@ -100,6 +100,7 @@ def process_vendedores_pdf(file_path: str, cliente_id: str):
 
     registros = []
     vendedor_atual = None
+    capturar_vendedor = False
 
     for pagina in reader.pages:
         try:
@@ -113,6 +114,15 @@ def process_vendedores_pdf(file_path: str, cliente_id: str):
         for linha in texto.splitlines():
             linha = linha.strip()
             if not linha: continue
+
+            if capturar_vendedor:
+                vendedor_atual = linha
+                capturar_vendedor = False
+                continue
+
+            if "VENDEDOR SUPERVISOR" in linha.upper():
+                capturar_vendedor = True
+                continue
 
             if any(x in linha.upper() for x in ["TOTAL", "COMISSÃO", "TIPO VENDA", "VENDEDOR"]):
                 continue
