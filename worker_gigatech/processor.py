@@ -116,9 +116,18 @@ def process_vendedores_pdf(file_path: str, cliente_id: str):
             if not linha: continue
 
             if capturar_vendedor:
-                vendedor_atual = linha
-                capturar_vendedor = False
-                continue
+                if re.search(r'\d{2}/\d{2}/\d{4}', linha):
+                    # É uma quebra de página que emendou direto na venda, cancela a captura
+                    capturar_vendedor = False
+                elif linha.upper() in ["DATA", "VENDA", "NÚMERO", "VENDANÚMERO", "CLIENTEVALOR", "VENDAS"]:
+                    # Cabeçalhos sujos de quebra de página
+                    capturar_vendedor = False
+                    continue
+                else:
+                    vendedor_atual = linha
+                    vendedor_atual = re.sub(r"\s+SEM SUPERVISOR.*$", "", vendedor_atual, flags=re.IGNORECASE).strip()
+                    capturar_vendedor = False
+                    continue
 
             if "VENDEDOR SUPERVISOR" in linha.upper():
                 capturar_vendedor = True
