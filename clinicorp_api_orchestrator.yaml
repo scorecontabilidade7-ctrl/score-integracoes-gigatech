@@ -15,7 +15,7 @@ inputs:
     type: STRING
     required: true
     description: "ID do cliente. Use TODOS para rodar a base inteira."
-    defaults: "TODOS"
+    defaults: "TODOS"  # Se data_inicial e data_final vazios, o orquestrador usa o mês atual
 
 triggers:
   - id: hourly_schedule
