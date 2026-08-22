@@ -124,8 +124,12 @@ def process_vendedores_pdf(file_path: str, cliente_id: str):
                     capturar_vendedor = False
                     continue
                 else:
-                    vendedor_atual = linha
-                    vendedor_atual = re.sub(r"\s+SEM SUPERVISOR.*$", "", vendedor_atual, flags=re.IGNORECASE).strip()
+                    # Remove eventual "SEM SUPERVISOR" suffix
+                    vendedor_atual = re.sub(r"\s+SEM SUPERVISOR.*$", "", linha, flags=re.IGNORECASE).strip()
+                    # Se houver mais de duas palavras, assumir que as duas últimas são o supervisor
+                    parts = vendedor_atual.split()
+                    if len(parts) > 2:
+                        vendedor_atual = " ".join(parts[:-2])
                     capturar_vendedor = False
                     continue
 
