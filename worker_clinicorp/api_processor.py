@@ -185,3 +185,66 @@ def process_agendamentos_geral_json(json_data: list, cliente_id: str, data_inici
     return records
 
 
+def _parse_float(val):
+    if val is None:
+        return 0.0
+    if isinstance(val, (int, float)):
+        return float(val)
+    try:
+        val_str = str(val).strip().replace("R$", "").replace(" ", "")
+        if "," in val_str and "." in val_str:
+            val_str = val_str.replace(".", "").replace(",", ".")
+        elif "," in val_str:
+            val_str = val_str.replace(",", ".")
+        return float(val_str)
+    except Exception:
+        return 0.0
+
+
+def process_procedimentos_executados_json(json_data: list, cliente_id: str, data_inicial: str = None, data_final: str = None) -> list:
+    """
+    Processa a lista de procedimentos executados vinda da API.
+    """
+    print("[API PROCESSADOR] Processando JSON de procedimentos executados...")
+    records = []
+
+    dt_ini = _format_iso_date(data_inicial) if data_inicial else None
+    dt_fim = _format_iso_date(data_final) if data_final else None
+    hoje = datetime.today()
+    mes_prefix = dt_ini[:7] if dt_ini else f"{hoje.year}-{hoje.month:02d}"
+
+    for item in json_data:
+        rec = {"cliente_id": cliente_id}
+
+        raw_date = item.get("ExecutedDate") or item.get("Date") or item.get("date") or item.get("CreateDate")
+        rec["data_execucao"] = _format_iso_date(raw_date)
+        rec["paciente"] = (item.get("PatientName") or item.get("patient_name") or item.get("Name") or "").strip() or None
+        
+        tel = item.get("MobilePhone") or item.get("phone") or item.get("Telephone") or item.get("contact")
+        rec["telefone"] = str(tel).strip() if tel else None
+        
+        rec["profissional"] = (item.get("DentistName") or item.get("dentist_name") or item.get("UserName") or "").strip() or None
+        rec["procedimento"] = (item.get("CharactDescription") or item.get("OperationDescription") or item.get("procedure_name") or item.get("ProcedureDescription") or "").strip() or None
+        
+        reg = item.get("Region") or item.get("Tooth") or item.get("Surface")
+        rec["regiao"] = str(reg).strip() if reg else None
+
+        raw_val = item.get("FinalAmount") if item.get("FinalAmount") is not None else (item.get("Amount") or item.get("Value") or item.get("Price") or item.get("valor") or 0)
+        rec["valor"] = _parse_float(raw_val)
+
+        if rec.get("data_execucao") and (rec.get("paciente") or rec.get("profissional") or rec.get("procedimento")):
+            if dt_ini and dt_fim:
+                if dt_ini <= rec["data_execucao"] <= dt_fim:
+                    records.append(rec)
+            elif dt_ini:
+                if rec["data_execucao"].startswith(mes_prefix):
+                    records.append(rec)
+            else:
+                records.append(rec)
+
+    print(f"[API PROCESSADOR] {len(records)} procedimentos executados extraídos.")
+    return records
+
+
+
+

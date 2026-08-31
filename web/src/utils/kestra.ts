@@ -86,6 +86,7 @@ export async function getKestraExecutions(systemId: string = 'gigatech'): Promis
       
       const res = await fetch(pagedUrl, {
         headers,
+        signal: AbortSignal.timeout(3000),
         next: { revalidate: 15 } // Cache de 15 segundos
       })
 
@@ -222,7 +223,10 @@ export async function getKestraLogs(executionId: string) {
       headers['Authorization'] = `Basic ${Buffer.from(process.env.KESTRA_BASIC_AUTH).toString('base64')}`
     }
 
-    const res = await fetch(logsUrl, { headers })
+    const res = await fetch(logsUrl, { 
+      headers,
+      signal: AbortSignal.timeout(3000)
+    })
     if (!res.ok) {
       throw new Error(`Erro ao buscar logs da execução ${executionId}: ${res.status}`)
     }

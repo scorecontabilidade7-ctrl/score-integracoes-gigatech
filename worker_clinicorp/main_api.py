@@ -11,22 +11,26 @@ from database import (
     clean_orcamentos,
     clean_primeiras_consultas,
     clean_agendamentos_geral,
+    clean_procedimentos_executados,
     remove_duplicados_orcamentos,
     remove_duplicados_primeiras_consultas,
-    remove_duplicados_agendamentos_geral
+    remove_duplicados_agendamentos_geral,
+    remove_duplicados_procedimentos_executados
 )
 from api_scraper import (
     get_auth_token, 
     fetch_faturamento, 
     fetch_orcamentos, 
     fetch_primeiras_consultas,
-    fetch_agendamentos_geral
+    fetch_agendamentos_geral,
+    fetch_procedimentos_executados
 )
 from api_processor import (
     process_faturamento_json, 
     process_orcamentos_json, 
     process_primeiras_consultas_json,
-    process_agendamentos_geral_json
+    process_agendamentos_geral_json,
+    process_procedimentos_executados_json
 )
 
 load_dotenv()
@@ -131,6 +135,19 @@ def main():
                     remove_duplicados_agendamentos_geral()
         except Exception as e:
             print(f"[ERRO] Falha ao processar agendamentos gerais de {nome_loja}: {e}")
+
+        # 5. Procedimentos Executados / Faturamento por Profissional
+        try:
+            print("\n--- Processando Procedimentos Executados ---")
+            json_proc = fetch_procedimentos_executados(token, data_inicial, data_final)
+            if json_proc:
+                clean_procedimentos_executados(cid, data_inicial, data_final)
+                records_proc = process_procedimentos_executados_json(json_proc, cid, data_inicial, data_final)
+                if records_proc:
+                    batch_insert("clinicorp_procedimentos_executados", records_proc)
+                    remove_duplicados_procedimentos_executados()
+        except Exception as e:
+            print(f"[ERRO] Falha ao processar procedimentos executados de {nome_loja}: {e}")
             
         print(f"[CLIENTE] Concluído para: {nome_loja}")
 

@@ -7,18 +7,23 @@ import { createClient } from '@/utils/supabase/server'
 export async function login(formData: FormData) {
   const supabase = await createClient()
 
-  // type-casting here for convenience
-  const data = {
-    email: formData.get('email') as string,
-    password: formData.get('password') as string,
+  const email = (formData.get('email') as string)?.trim()
+  const password = (formData.get('password') as string)?.trim()
+
+  if (!email || !password) {
+    redirect('/login?error=' + encodeURIComponent('Preencha e-mail e senha'))
   }
 
-  const { error } = await supabase.auth.signInWithPassword(data)
+  const { error } = await supabase.auth.signInWithPassword({
+    email,
+    password,
+  })
 
   if (error) {
-    redirect('/login?error=Credenciais inválidas')
+    redirect('/login?error=' + encodeURIComponent('Credenciais inválidas'))
   }
 
   revalidatePath('/', 'layout')
   redirect('/dashboard')
 }
+

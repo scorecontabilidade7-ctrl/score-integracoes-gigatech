@@ -50,13 +50,15 @@ Todas as tabelas adotam prefixos do respectivo sistema e possuem **Row Level Sec
 * **`gigatech_clientes_config`**: Credenciais de acesso de cada cliente.
 * **`gigatech_vendas`**, **`gigatech_vendedores`**, **`gigatech_clientes_novos`**, **`gigatech_estoque`**: Dados tratados.
 
-### Integração Clinicorp (Nova)
+### Integração Clinicorp
 * **`clinicorp_clientes_config`**: Credenciais da clínica (`id`, `nome_loja`, `email_login_clinicorp`, `senha_login_clinicorp`, `ativo`).
-* **`clinicorp_faturamento_profissional`**: Faturamento bruto de cada dentista/profissional.
-* **`clinicorp_orcamentos`**: Listagem de propostas e procedimentos do período.
+* **`clinicorp_faturamento_profissional`**: Faturamento consolidado bruto de cada dentista/profissional.
+* **`clinicorp_orcamentos`**: Listagem de propostas e orçamentos do período.
 * **`clinicorp_primeiras_consultas`**: Agendamentos de pacientes de primeira avaliação.
+* **`clinicorp_agendamentos_geral`**: Todos os agendamentos da clínica para taxas de comparecimento.
+* **`clinicorp_procedimentos_executados`**: [NOVO] Procedimentos executados no período por paciente, com profissional, região e valor.
 
-*Políticas de RLS:* Adicionadas políticas `clinicorp_*_select`, `_insert`, `_update`, `_delete` para que a API do Next.js manipule e exiba as informações de forma segura na interface.
+*Políticas de RLS:* Adicionadas políticas `clinicorp_*_select`, `_insert`, `_update`, `_delete` para que a API do Next.js e relatórios manipulem e exibam as informações com segurança.
 
 ---
 

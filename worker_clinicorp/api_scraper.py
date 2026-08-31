@@ -163,3 +163,30 @@ def fetch_agendamentos_geral(token, data_inicial, data_final):
     resp.raise_for_status()
     res_json = resp.json()
     return res_json.get("list", res_json if isinstance(res_json, list) else [])
+
+def fetch_procedimentos_executados(token, data_inicial, data_final):
+    """
+    Busca relatório de Procedimentos Executados direto via API REST.
+    """
+    d_ini = _format_date_for_api(data_inicial)
+    d_fim = _format_date_for_api(data_final)
+    
+    headers = {
+        "Authorization": token,
+        "Accept": "application/json"
+    }
+
+    url = f"https://api.clinicorp.com/api/treatment/get_executed_clinical_sheet_items?from={d_ini}&to={d_fim}&_AccessPath=*.ClinicalRecord.RunExecutedProceduresReport"
+    print(f"[API SCRAPER] Buscando Procedimentos Executados ({d_ini} a {d_fim})...")
+    
+    try:
+        resp = requests.get(url, headers=headers, timeout=45)
+        resp.raise_for_status()
+        res_json = resp.json()
+        data_list = res_json.get("list", [])
+        print(f"[API SCRAPER] {len(data_list)} procedimentos executados retornados da API.")
+        return data_list
+    except Exception as e:
+        print(f"[ERRO API SCRAPER] Falha ao buscar procedimentos executados: {e}")
+        return []
+
