@@ -218,6 +218,7 @@ def process_procedimentos_executados_json(json_data: list, cliente_id: str, data
 
         raw_date = item.get("ExecutedDate") or item.get("Date") or item.get("date") or item.get("CreateDate")
         rec["data_execucao"] = _format_iso_date(raw_date)
+        rec["id_procedimento"] = str(item.get("id") or item.get("TreatmentId") or "").strip() or None
         rec["paciente"] = (item.get("PatientName") or item.get("patient_name") or item.get("Name") or "").strip() or None
         
         tel = item.get("MobilePhone") or item.get("phone") or item.get("Telephone") or item.get("contact")
