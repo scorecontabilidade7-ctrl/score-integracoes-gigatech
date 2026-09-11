@@ -9,6 +9,7 @@ from scraper import extrair_dados, TMP_DIR
 from processor import (
     process_vendas_excel,
     process_vendedores_pdf,
+    process_ranking_pdf,
     process_clientes_novos,
     process_estoque_excel,
     process_fechamento_caixa
@@ -97,6 +98,13 @@ def main():
                 process_vendedores_pdf(vendedores, cid)
             except Exception as e:
                 print(f"[ERRO] Falha ao limpar/processar vendedores do cliente {nome_loja}: {e}")
+        
+        ranking = arquivos.get("ranking_pdf")
+        if ranking:
+            try:
+                process_ranking_pdf(ranking, cid, nome_loja=nome_loja)
+            except Exception as e:
+                print(f"[ERRO] Falha ao processar ranking de vendedores do cliente {nome_loja}: {e}")
         
         clientes_pdf = arquivos.get("clientes_pdf")
         if clientes_pdf:

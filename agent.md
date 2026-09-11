@@ -12,6 +12,7 @@ Este documento serve como a memória central e o guia arquitetural do projeto. O
 │   ├── scraper.py
 │   ├── processor.py
 │   ├── database.py
+│   ├── ranking_exports/       # 📊 [NOVO] Planilhas XLSX exportadas do Ranking de Vendedores
 │   └── tmp_downloads/
 │
 ├── worker_clinicorp/          # 🐍 [NOVO] Automação Clinicorp

@@ -155,8 +155,10 @@ out/
 # =========================
 worker_gigatech/tmp_downloads/
 worker_clinicorp/tmp_downloads/
+worker_gigatech/ranking_exports/
 tmp_debug/
 *.xlsx
 *.xls
+*.pdf
 *_raw.json
 

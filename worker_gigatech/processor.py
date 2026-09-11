@@ -1,6 +1,8 @@
 import pandas as pd
 import re
+from pathlib import Path
 from PyPDF2 import PdfReader
+import pdfplumber
 from datetime import datetime
 from database import batch_insert
 
@@ -419,3 +421,137 @@ def process_fechamento_caixa(file_path: str, cliente_id: str):
                     })
 
     batch_insert("gigatech_fechamento_caixa", registros)
+
+
+def parse_br_number(val):
+    """Converte números formatados em padrão brasileiro para float com precisão."""
+    if val is None:
+        return 0.0
+    s = str(val).replace("R$", "").replace(" ", "").strip()
+    if not s:
+        return 0.0
+    if "." in s and "," in s:
+        s = s.replace(".", "").replace(",", ".")
+    elif "," in s:
+        s = s.replace(",", ".")
+    try:
+        return float(s)
+    except:
+        return 0.0
+
+
+def process_ranking_pdf(file_path: str, cliente_id: str, nome_loja: str = "", export_dir: str = None) -> pd.DataFrame:
+    """
+    Lê o PDF de Ranking de Vendedores, processa os dados de cada vendedor e exporta para XLSX no armazenamento local.
+    """
+    print(f"[PROCESS] Processando PDF de Ranking de Vendedores: {file_path}")
+    registros = []
+    empresa_info = {}
+
+    try:
+        with pdfplumber.open(file_path) as pdf:
+            for page in pdf.pages:
+                text = page.extract_text()
+                if not text:
+                    continue
+
+                lines = [l.strip() for l in text.splitlines() if l.strip()]
+
+                for line in lines:
+                    period_match = re.search(r'Per[íi]odo:\s*(\d{2}/\d{2}/\d{4})\s*At[ée]\s*(\d{2}/\d{2}/\d{4})', line, re.IGNORECASE)
+                    if period_match:
+                        empresa_info['data_inicial'] = period_match.group(1)
+                        empresa_info['data_final'] = period_match.group(2)
+                    cnpj_match = re.search(r'CNPJ:\s*([\d\./\-]+)', line)
+                    if cnpj_match:
+                        empresa_info['cnpj'] = cnpj_match.group(1)
+
+                ranking_regex = re.compile(
+                    r'^(.*?)\s+([\d\.,]+)\s+(?:R\$\s*)?([\d\.,]+)\s+([\d\.,]+)\s+(?:R\$\s*)?([\d\.,]+)\s+([\d\.,]+)$'
+                )
+
+                is_in_ranking_section = False
+                for line in lines:
+                    if "RANKING DE VENDEDORES" in line.upper():
+                        is_in_ranking_section = True
+                        continue
+
+                    if any(x in line.upper() for x in ["QUANTIDADE DE PRODUTOS VENDIDOS", "VALOR TOTAL DAS VENDAS", "TICKET M", "P.A M", "QUANTIDADE DE VENDAS"]):
+                        is_in_ranking_section = False
+
+                    if is_in_ranking_section:
+                        if any(h in line.upper() for h in ["VENDEDOR", "QTD TOTAL", "VALOR TOTAL", "ITENS VENDIDOS", "TKM", "P.A."]):
+                            continue
+
+                        match = ranking_regex.search(line)
+                        if match:
+                            vendedor = match.group(1).strip()
+                            qtd_vendas = parse_br_number(match.group(2))
+                            valor_vendas = parse_br_number(match.group(3))
+                            qtd_itens = parse_br_number(match.group(4))
+                            tkm = parse_br_number(match.group(5))
+                            pa = parse_br_number(match.group(6))
+
+                            d_ini = empresa_info.get("data_inicial", "")
+                            d_fim = empresa_info.get("data_final", "")
+
+                            registros.append({
+                                "cliente_id": cliente_id,
+                                "loja": nome_loja,
+                                "vendedor": vendedor,
+                                "qtd_total_vendas": int(qtd_vendas) if qtd_vendas.is_integer() else qtd_vendas,
+                                "valor_total_vendas": valor_vendas,
+                                "qtd_total_itens_vendidos": int(qtd_itens) if qtd_itens.is_integer() else qtd_itens,
+                                "ticket_medio": tkm,
+                                "pecas_por_atendimento": pa,
+                                "data_inicial": d_ini,
+                                "data_final": d_fim
+                            })
+    except Exception as e:
+        print(f"[ERRO] Falha ao ler PDF {file_path}: {e}")
+        return pd.DataFrame()
+
+    df = pd.DataFrame(registros)
+    if df.empty:
+        print(f"[AVISO] Nenhum registro extraído do PDF de ranking para o cliente {cliente_id}.")
+        return df
+
+    # Cálculo do P.A. Médio Geral (Total de Produtos Vendidos / Quantidade de Vendas)
+    soma_vendas = df["qtd_total_vendas"].sum()
+    soma_itens = df["qtd_total_itens_vendidos"].sum()
+    pa_medio_calculado = round(soma_itens / soma_vendas, 3) if soma_vendas > 0 else 0.0
+
+    # Linha consolidada no rodapé contendo apenas o P.A. Médio Geral
+    linha_consolidada = {
+        "cliente_id": cliente_id,
+        "loja": nome_loja,
+        "vendedor": "P.A. MÉDIO GERAL",
+        "qtd_total_vendas": None,
+        "valor_total_vendas": None,
+        "qtd_total_itens_vendidos": None,
+        "ticket_medio": None,
+        "pecas_por_atendimento": pa_medio_calculado,
+        "data_inicial": empresa_info.get("data_inicial", ""),
+        "data_final": empresa_info.get("data_final", "")
+    }
+
+    df_export = pd.concat([df, pd.DataFrame([linha_consolidada])], ignore_index=True)
+
+    # Salva no diretório local de exportações
+    if not export_dir:
+        export_dir = Path(__file__).parent / "ranking_exports"
+    else:
+        export_dir = Path(export_dir)
+    export_dir.mkdir(parents=True, exist_ok=True)
+
+    d_ini_str = empresa_info.get("data_inicial", "").replace("/", "")
+    d_fim_str = empresa_info.get("data_final", "").replace("/", "")
+    nome_sanitizado = re.sub(r'[^\w\-_\. ]', '_', nome_loja).strip().replace(" ", "_") if nome_loja else cliente_id
+    
+    file_name = f"ranking_vendedores_{nome_sanitizado}_{d_ini_str}_{d_fim_str}.xlsx"
+    xlsx_path = export_dir / file_name
+
+    df_export.to_excel(xlsx_path, index=False)
+    print(f"[SALVO] Relatório Ranking de Vendedores exportado com sucesso em XLSX: {xlsx_path}")
+    return df_export
+

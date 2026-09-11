@@ -78,7 +78,8 @@ def capture_pdf_via_print_button(page, context, button_locator, dest_name):
     def on_response(response):
         nonlocal pdf_bytes
         try:
-            if "application/pdf" in (response.headers.get("content-type") or "").lower():
+            content_type = (response.headers.get("content-type") or "").lower()
+            if "application/pdf" in content_type or "octet-stream" in content_type:
                 body = response.body()
                 if body and body[:4] == b"%PDF":
                     pdf_bytes = body
@@ -87,17 +88,17 @@ def capture_pdf_via_print_button(page, context, button_locator, dest_name):
     context.on("response", on_response)
     popup_page = None
     try:
-        with page.expect_popup(timeout=60000) as popup_info:
+        with page.expect_popup(timeout=15000) as popup_info:
             safe_click(button_locator)
         popup_page = popup_info.value
         if popup_page:
-            popup_page.wait_for_load_state("domcontentloaded", timeout=60000)
-            popup_page.wait_for_timeout(3000)
+            popup_page.wait_for_load_state("domcontentloaded", timeout=20000)
+            popup_page.wait_for_timeout(2000)
     except: pass
     
     if pdf_bytes is None:
         try:
-            with page.expect_download(timeout=90000) as download_info:
+            with page.expect_download(timeout=30000) as download_info:
                 safe_click(button_locator)
             download = download_info.value
             temp_path = download.path()
@@ -137,7 +138,7 @@ def extrair_dados(cliente_config, data_inicial, data_final):
 
         try:
             login(page, url, user, pwd)
-                    # VENDAS EXCEL
+            # VENDAS EXCEL
             try:
                 print("[SCRAPER] Baixando Vendas Excel")
                 page.goto(page.url, wait_until="domcontentloaded")
@@ -168,6 +169,21 @@ def extrair_dados(cliente_config, data_inicial, data_final):
             except Exception as e:
                 print(f"[ERRO SCRAPER VENDEDOR PDF] {e}")
  
+            # RANKING DE VENDEDORES PDF
+            try:
+                print("[SCRAPER] Baixando Ranking de Vendedores PDF")
+                url_ranking = "https://app.mentorasolucoes.com.br/Voti-1.0.7/relatorios_vendas/frm_rel_ranking_vendedor.xhtml"
+                page.goto(url_ranking, wait_until="domcontentloaded", timeout=60000)
+                fill_dates(page, "frmVenda", data_inicial, data_final)
+                page.wait_for_timeout(500)
+                pdf_btn_ranking = first_visible(page, [
+                    'xpath=//form[contains(@id,"frmVenda")]//button[contains(.,"Imprimir") or .//span[contains(.,"Imprimir")]]',
+                    'xpath=//button[.//span[normalize-space()="Imprimir"]]'
+                ])
+                arquivos["ranking_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn_ranking, f"ranking_{cliente_id}.pdf")
+            except Exception as e:
+                print(f"[ERRO SCRAPER RANKING VENDEDORES] {e}")
+
             # ESTOQUE EXCEL
             try:
                 print("[SCRAPER] Baixando Custo Estoque Excel")
@@ -194,6 +210,7 @@ def extrair_dados(cliente_config, data_inicial, data_final):
                 arquivos["clientes_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn_cli, f"clientes_{cliente_id}.pdf")
             except Exception as e:
                 print(f"[ERRO SCRAPER CLIENTES NOVOS] {e}")
+
             # FECHAMENTO DE CAIXA PDF
             try:
                 print("[SCRAPER] Baixando Fechamento de Caixa PDF")
