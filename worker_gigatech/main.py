@@ -78,6 +78,7 @@ def main():
         from database import (
             clean_vendas,
             clean_vendedores,
+            clean_ranking_vendedores,
             clean_clientes_novos,
             clean_estoque,
             clean_fechamento_caixa
@@ -101,10 +102,14 @@ def main():
         
         ranking = arquivos.get("ranking_pdf")
         if ranking:
-            try:
-                process_ranking_pdf(ranking, cid, nome_loja=nome_loja)
-            except Exception as e:
-                print(f"[ERRO] Falha ao processar ranking de vendedores do cliente {nome_loja}: {e}")
+            if data_inicial == data_final:
+                try:
+                    clean_ranking_vendedores(cid, data_inicial, data_final)
+                    process_ranking_pdf(ranking, cid, nome_loja=nome_loja, save_to_db=True)
+                except Exception as e:
+                    print(f"[ERRO] Falha ao limpar/processar ranking de vendedores do cliente {nome_loja}: {e}")
+            else:
+                print(f"[AVISO] Ranking não gravado no banco pois o período não é diário ({data_inicial} até {data_final}).")
         
         clientes_pdf = arquivos.get("clientes_pdf")
         if clientes_pdf:

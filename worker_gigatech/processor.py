@@ -128,10 +128,14 @@ def process_vendedores_pdf(file_path: str, cliente_id: str):
                 else:
                     # Remove eventual "SEM SUPERVISOR" suffix
                     vendedor_atual = re.sub(r"\s+SEM SUPERVISOR.*$", "", linha, flags=re.IGNORECASE).strip()
-                    # Se houver mais de duas palavras, assumir que as duas últimas são o supervisor
+                    # Manter apenas os dois primeiros tokens (nome do vendedor)
                     parts = vendedor_atual.split()
-                    if len(parts) > 2:
-                        vendedor_atual = " ".join(parts[:-2])
+                    if len(parts) >= 2:
+                        vendedor_atual = " ".join(parts[:2])
+                    elif len(parts) == 1:
+                        vendedor_atual = parts[0]
+                    else:
+                        vendedor_atual = ""
                     capturar_vendedor = False
                     continue
 
@@ -440,9 +444,9 @@ def parse_br_number(val):
         return 0.0
 
 
-def process_ranking_pdf(file_path: str, cliente_id: str, nome_loja: str = "", export_dir: str = None) -> pd.DataFrame:
+def process_ranking_pdf(file_path: str, cliente_id: str, nome_loja: str = "", export_dir: str = None, save_to_db: bool = False, data_referencia: str = None) -> pd.DataFrame:
     """
-    Lê o PDF de Ranking de Vendedores, processa os dados de cada vendedor e exporta para XLSX no armazenamento local.
+    Lê o PDF de Ranking de Vendedores, processa os dados de cada vendedor e exporta para XLSX e/ou Supabase.
     """
     print(f"[PROCESS] Processando PDF de Ranking de Vendedores: {file_path}")
     registros = []
@@ -492,8 +496,14 @@ def process_ranking_pdf(file_path: str, cliente_id: str, nome_loja: str = "", ex
                             tkm = parse_br_number(match.group(5))
                             pa = parse_br_number(match.group(6))
 
-                            d_ini = empresa_info.get("data_inicial", "")
-                            d_fim = empresa_info.get("data_final", "")
+                            d_ini = data_referencia or empresa_info.get("data_inicial", "")
+                            d_fim = data_referencia or empresa_info.get("data_final", "")
+
+                            # Converte data para ISO YYYY-MM-DD
+                            try:
+                                dt_parsed = datetime.strptime(d_ini, "%d/%m/%Y").date().isoformat()
+                            except:
+                                dt_parsed = d_ini
 
                             registros.append({
                                 "cliente_id": cliente_id,
@@ -504,6 +514,7 @@ def process_ranking_pdf(file_path: str, cliente_id: str, nome_loja: str = "", ex
                                 "qtd_total_itens_vendidos": int(qtd_itens) if qtd_itens.is_integer() else qtd_itens,
                                 "ticket_medio": tkm,
                                 "pecas_por_atendimento": pa,
+                                "data_venda": dt_parsed,
                                 "data_inicial": d_ini,
                                 "data_final": d_fim
                             })
@@ -516,12 +527,29 @@ def process_ranking_pdf(file_path: str, cliente_id: str, nome_loja: str = "", ex
         print(f"[AVISO] Nenhum registro extraído do PDF de ranking para o cliente {cliente_id}.")
         return df
 
+    # Inserção direta no Supabase quando habilitado
+    if save_to_db:
+        db_records = []
+        for _, r in df.iterrows():
+            db_records.append({
+                "cliente_id": cliente_id,
+                "data_venda": r["data_venda"],
+                "vendedor": r["vendedor"],
+                "qtd_total_vendas": int(r["qtd_total_vendas"]) if pd.notnull(r["qtd_total_vendas"]) else 0,
+                "valor_total_vendas": float(r["valor_total_vendas"]) if pd.notnull(r["valor_total_vendas"]) else 0.0,
+                "qtd_total_itens_vendidos": int(r["qtd_total_itens_vendidos"]) if pd.notnull(r["qtd_total_itens_vendidos"]) else 0,
+                "ticket_medio": float(r["ticket_medio"]) if pd.notnull(r["ticket_medio"]) else 0.0,
+                "pecas_por_atendimento": float(r["pecas_por_atendimento"]) if pd.notnull(r["pecas_por_atendimento"]) else 0.0,
+            })
+        if db_records:
+            batch_insert("gigatech_ranking_vendedores", db_records)
+
     # Cálculo do P.A. Médio Geral (Total de Produtos Vendidos / Quantidade de Vendas)
     soma_vendas = df["qtd_total_vendas"].sum()
     soma_itens = df["qtd_total_itens_vendidos"].sum()
     pa_medio_calculado = round(soma_itens / soma_vendas, 3) if soma_vendas > 0 else 0.0
 
-    # Linha consolidada no rodapé contendo apenas o P.A. Médio Geral
+    # Linha consolidada no rodapé contendo apenas o P.A. Médio Geral para o XLSX
     linha_consolidada = {
         "cliente_id": cliente_id,
         "loja": nome_loja,
@@ -531,6 +559,7 @@ def process_ranking_pdf(file_path: str, cliente_id: str, nome_loja: str = "", ex
         "qtd_total_itens_vendidos": None,
         "ticket_medio": None,
         "pecas_por_atendimento": pa_medio_calculado,
+        "data_venda": None,
         "data_inicial": empresa_info.get("data_inicial", ""),
         "data_final": empresa_info.get("data_final", "")
     }
@@ -554,4 +583,5 @@ def process_ranking_pdf(file_path: str, cliente_id: str, nome_loja: str = "", ex
     df_export.to_excel(xlsx_path, index=False)
     print(f"[SALVO] Relatório Ranking de Vendedores exportado com sucesso em XLSX: {xlsx_path}")
     return df_export
+
 

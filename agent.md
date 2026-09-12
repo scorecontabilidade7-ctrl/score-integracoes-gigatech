@@ -49,7 +49,9 @@ Todas as tabelas adotam prefixos do respectivo sistema e possuem **Row Level Sec
 
 ### Integração Giga Tech
 * **`gigatech_clientes_config`**: Credenciais de acesso de cada cliente.
-* **`gigatech_vendas`**, **`gigatech_vendedores`**, **`gigatech_clientes_novos`**, **`gigatech_estoque`**: Dados tratados.
+* **`gigatech_vendas`**, **`gigatech_vendedores`**, **`gigatech_clientes_novos`**, **`gigatech_estoque`**, **`gigatech_fechamento_caixa`**: Dados tratados.
+* **`gigatech_ranking_vendedores`**: [NOVO] Ranking de vendedores com P.A. (Peças por Atendimento), quantidade de vendas, itens, valor total e ticket médio por vendedor e data (`data_venda`).
+
 
 ### Integração Clinicorp
 * **`clinicorp_clientes_config`**: Credenciais da clínica (`id`, `nome_loja`, `email_login_clinicorp`, `senha_login_clinicorp`, `ativo`).

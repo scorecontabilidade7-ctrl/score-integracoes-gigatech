@@ -79,3 +79,9 @@ def clean_fechamento_caixa(cliente_id: str, data_inicial: str, data_final: str):
     dt_ini, dt_fim = parse_dates(data_inicial, data_final)
     print(f"[BD] Limpando fechamento de caixa antigo de {dt_ini} a {dt_fim}...")
     supabase.table("gigatech_fechamento_caixa").delete().eq("cliente_id", cliente_id).gte("data_caixa", dt_ini).lte("data_caixa", dt_fim).execute()
+
+def clean_ranking_vendedores(cliente_id: str, data_inicial: str, data_final: str):
+    dt_ini, dt_fim = parse_dates(data_inicial, data_final)
+    print(f"[BD] Limpando ranking de vendedores antigos de {dt_ini} a {dt_fim}...")
+    supabase.table("gigatech_ranking_vendedores").delete().eq("cliente_id", cliente_id).gte("data_venda", dt_ini).lte("data_venda", dt_fim).execute()
+

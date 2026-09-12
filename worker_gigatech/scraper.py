@@ -169,20 +169,23 @@ def extrair_dados(cliente_config, data_inicial, data_final):
             except Exception as e:
                 print(f"[ERRO SCRAPER VENDEDOR PDF] {e}")
  
-            # RANKING DE VENDEDORES PDF
-            try:
-                print("[SCRAPER] Baixando Ranking de Vendedores PDF")
-                url_ranking = "https://app.mentorasolucoes.com.br/Voti-1.0.7/relatorios_vendas/frm_rel_ranking_vendedor.xhtml"
-                page.goto(url_ranking, wait_until="domcontentloaded", timeout=60000)
-                fill_dates(page, "frmVenda", data_inicial, data_final)
-                page.wait_for_timeout(500)
-                pdf_btn_ranking = first_visible(page, [
-                    'xpath=//form[contains(@id,"frmVenda")]//button[contains(.,"Imprimir") or .//span[contains(.,"Imprimir")]]',
-                    'xpath=//button[.//span[normalize-space()="Imprimir"]]'
-                ])
-                arquivos["ranking_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn_ranking, f"ranking_{cliente_id}.pdf")
-            except Exception as e:
-                print(f"[ERRO SCRAPER RANKING VENDEDORES] {e}")
+            # RANKING DE VENDEDORES PDF (Apenas em execuções diárias para preservar granularidade por dia)
+            if data_inicial == data_final:
+                try:
+                    print(f"[SCRAPER] Baixando Ranking de Vendedores PDF (Diário: {data_inicial})")
+                    url_ranking = "https://app.mentorasolucoes.com.br/Voti-1.0.7/relatorios_vendas/frm_rel_ranking_vendedor.xhtml"
+                    page.goto(url_ranking, wait_until="domcontentloaded", timeout=60000)
+                    fill_dates(page, "frmVenda", data_inicial, data_final)
+                    page.wait_for_timeout(500)
+                    pdf_btn_ranking = first_visible(page, [
+                        'xpath=//form[contains(@id,"frmVenda")]//button[contains(.,"Imprimir") or .//span[contains(.,"Imprimir")]]',
+                        'xpath=//button[.//span[normalize-space()="Imprimir"]]'
+                    ])
+                    arquivos["ranking_pdf"] = capture_pdf_via_print_button(page, context, pdf_btn_ranking, f"ranking_{cliente_id}.pdf")
+                except Exception as e:
+                    print(f"[ERRO SCRAPER RANKING VENDEDORES] {e}")
+            else:
+                print(f"[SCRAPER] Período multi-dias detectado ({data_inicial} até {data_final}). Pulando Ranking de Vendedores para proteger o histórico diário.")
 
             # ESTOQUE EXCEL
             try:
