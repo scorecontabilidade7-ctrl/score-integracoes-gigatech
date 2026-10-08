@@ -3,6 +3,14 @@ namespace: phibo.automacoes
 description: Orquestrador Multi-tenant do PHIBO (Vendas e Estoque)
 
 inputs:
+  - id: data_inicial
+    type: STRING
+    required: false
+    description: "Data inicial (dd/mm/yyyy). Deixe vazio para usar o mês atual."
+  - id: data_final
+    type: STRING
+    required: false
+    description: "Data final (dd/mm/yyyy). Deixe vazio para usar o mês atual."
   - id: mes
     type: INT
     required: false
@@ -42,6 +50,8 @@ tasks:
         env:
           SUPABASE_URL: "{{ kv('SUPABASE_URL') }}"
           SUPABASE_KEY: "{{ kv('SUPABASE_KEY') }}"
+          PHIBO_DATA_INICIAL: "{{ trigger.body.data_inicial ?? inputs.data_inicial ?? '' }}"
+          PHIBO_DATA_FINAL: "{{ trigger.body.data_final ?? inputs.data_final ?? '' }}"
           PHIBO_MES: "{{ trigger.body.mes ?? inputs.mes ?? '' }}"
           PHIBO_ANO: "{{ trigger.body.ano ?? inputs.ano ?? '' }}"
           PHIBO_CLIENTE_ID: "{{ trigger.body.cliente_id ?? inputs.cliente_id ?? '' }}"

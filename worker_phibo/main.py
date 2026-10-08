@@ -37,10 +37,25 @@ def run_pipeline():
     env_cid = os.environ.get("PHIBO_CLIENTE_ID")
     env_month = os.environ.get("PHIBO_MES")
     env_year = os.environ.get("PHIBO_ANO")
+    env_dt_ini = os.environ.get("PHIBO_DATA_INICIAL") or os.environ.get("KESTRA_DATA_INICIAL")
+
+    if env_dt_ini and (not env_month or not str(env_month).strip()):
+        # Suporte a formatos dd/mm/yyyy ou yyyy-mm-dd disparados pelo dashboard
+        clean_dt = str(env_dt_ini).strip()
+        if "/" in clean_dt:
+            partes = clean_dt.split("/")
+            if len(partes) == 3:
+                env_month = partes[1]
+                env_year = partes[2]
+        elif "-" in clean_dt:
+            partes = clean_dt.split("-")
+            if len(partes) == 3:
+                env_year = partes[0]
+                env_month = partes[1]
 
     target_client_id = args.client_id or (env_cid if env_cid and env_cid.strip() and env_cid != "TODOS" else None)
-    ano = args.year or (int(env_year) if env_year and env_year.isdigit() else agora.year)
-    mes = args.month or (int(env_month) if env_month and env_month.isdigit() else agora.month)
+    ano = args.year or (int(env_year) if env_year and str(env_year).isdigit() else agora.year)
+    mes = args.month or (int(env_month) if env_month and str(env_month).isdigit() else agora.month)
 
     print("=" * 60)
     print("[INICIO] INICIANDO WORKER PHIBO")
