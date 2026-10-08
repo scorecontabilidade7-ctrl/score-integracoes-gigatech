@@ -1,0 +1,54 @@
+id: phibo_to_supabase
+namespace: phibo.automacoes
+description: Orquestrador Multi-tenant do PHIBO (Vendas e Estoque)
+
+inputs:
+  - id: mes
+    type: INT
+    required: false
+    description: "Mês (1 a 12). Deixe vazio para usar o mês atual."
+  - id: ano
+    type: INT
+    required: false
+    description: "Ano (ex: 2026). Deixe vazio para usar o ano atual."
+  - id: cliente_id
+    type: STRING
+    required: false
+    description: "UUID do cliente. Deixe vazio para rodar todas as lojas."
+
+triggers:
+  - id: daily_night_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "30 19 * * 1-5" # Segunda a sexta às 19:30 (dentro da janela noturna liberada a partir das 19:10)
+  - id: daily_morning_schedule
+    type: io.kestra.plugin.core.trigger.Schedule
+    cron: "30 8 * * 1-5" # Segunda a sexta às 08:30 (dentro da janela matinal liberada das 08:00 às 10:10)
+  - id: webhook_trigger
+    type: io.kestra.plugin.core.trigger.Webhook
+    key: "PHIBO_EXTRACT_KEY"
+
+tasks:
+  - id: working_dir
+    type: io.kestra.plugin.core.flow.WorkingDirectory
+    tasks:
+      - id: clone_repo
+        type: io.kestra.plugin.git.Clone
+        url: "https://github.com/scorecontabilidade7-ctrl/score-integracoes-gigatech.git"
+        branch: main
+      
+      - id: execute_python
+        type: io.kestra.plugin.scripts.python.Script
+        containerImage: mcr.microsoft.com/playwright/python:v1.44.0-jammy
+        env:
+          SUPABASE_URL: "{{ kv('SUPABASE_URL') }}"
+          SUPABASE_KEY: "{{ kv('SUPABASE_KEY') }}"
+          PHIBO_MES: "{{ trigger.body.mes ?? inputs.mes ?? '' }}"
+          PHIBO_ANO: "{{ trigger.body.ano ?? inputs.ano ?? '' }}"
+          PHIBO_CLIENTE_ID: "{{ trigger.body.cliente_id ?? inputs.cliente_id ?? '' }}"
+        beforeCommands:
+          - pip install --no-cache-dir -r requirements.txt
+        script: |
+          import sys
+          import subprocess
+          print("Iniciando Orquestrador PHIBO V1...")
+          subprocess.check_call([sys.executable, "worker_phibo/main.py"])

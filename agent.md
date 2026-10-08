@@ -1,6 +1,6 @@
-# 🤖 Contexto do Agente: Plataforma de Integrações Multi-Sistemas (V2.1)
+# 🤖 Contexto do Agente: Plataforma de Integrações Multi-Sistemas (V2.2)
 
-Este documento serve como a memória central e o guia arquitetural do projeto. O objetivo da versão 2.1 é expandir o ecossistema (originalmente exclusivo da Giga Tech) para se tornar uma **Plataforma Multi-Integrações**, suportando qualquer sistema ERP/odontológico de forma isolada, modular e monitorável, iniciando com a integração da **Clinicorp**.
+Este documento serve como a memória central e o guia arquitetural do projeto. O objetivo da versão 2.2 é consolidar o ecossistema como uma **Plataforma Multi-Integrações**, suportando ERPs e sistemas verticais (varejo, ótica, odontológico) de forma modular, monitorável e idempotente: **Giga Tech**, **Clinicorp** e **PHIBO**.
 
 ---
 
@@ -12,14 +12,21 @@ Este documento serve como a memória central e o guia arquitetural do projeto. O
 │   ├── scraper.py
 │   ├── processor.py
 │   ├── database.py
-│   ├── ranking_exports/       # 📊 [NOVO] Planilhas XLSX exportadas do Ranking de Vendedores
+│   ├── ranking_exports/       # 📊 Planilhas XLSX exportadas do Ranking de Vendedores
 │   └── tmp_downloads/
 │
-├── worker_clinicorp/          # 🐍 [NOVO] Automação Clinicorp
+├── worker_clinicorp/          # 🐍 Automação Clinicorp
 │   ├── main.py                # Loop principal de clínicas, idempotência e batch inserts
 │   ├── scraper.py             # Playwright headless com bypass de data readonly via JS
 │   ├── processor.py           # Tratamento de XLS Clinicorp via Pandas (conversão BR -> US)
 │   ├── database.py            # Operações de banco isoladas para as tabelas clinicorp_*
+│   └── tmp_downloads/
+│
+├── worker_phibo/              # 🐍 [NOVO] Automação ERP PHIBO (Vendas & Estoque)
+│   ├── main.py                # Loop de lojas, CLI (--client-id, --test-offline, --month)
+│   ├── scraper.py             # Playwright headless com detecção de janela de horário e download CSV
+│   ├── processor.py           # Parsing de CSV com formatação brasileira e separação cliente/telefone
+│   ├── database.py            # Operações de banco isoladas para as tabelas phibo_*
 │   └── tmp_downloads/
 │
 ├── web/                       # 🌐 Dashboard Administrativo (Next.js 15)
@@ -36,7 +43,8 @@ Este documento serve como a memória central e o guia arquitetural do projeto. O
 │   └── package.json
 │
 ├── gigatech_orchestrator.yaml # ⚙️ Orquestração Kestra da Giga Tech
-├── clinicorp_orchestrator.yaml# ⚙️ [NOVO] Orquestração Kestra da Clinicorp
+├── clinicorp_orchestrator.yaml# ⚙️ Orquestração Kestra da Clinicorp
+├── phibo_orchestrator.yaml    # ⚙️ [NOVO] Orquestração Kestra do PHIBO
 ├── requirements.txt           # Dependências do ambiente Python
 └── agent.md                   # Este arquivo (memória do agente)
 ```
@@ -50,8 +58,7 @@ Todas as tabelas adotam prefixos do respectivo sistema e possuem **Row Level Sec
 ### Integração Giga Tech
 * **`gigatech_clientes_config`**: Credenciais de acesso de cada cliente.
 * **`gigatech_vendas`**, **`gigatech_vendedores`**, **`gigatech_clientes_novos`**, **`gigatech_estoque`**, **`gigatech_fechamento_caixa`**: Dados tratados.
-* **`gigatech_ranking_vendedores`**: [NOVO] Ranking de vendedores com P.A. (Peças por Atendimento), quantidade de vendas, itens, valor total e ticket médio por vendedor e data (`data_venda`).
-
+* **`gigatech_ranking_vendedores`**: Ranking de vendedores com P.A. (Peças por Atendimento), quantidade de vendas, itens, valor total e ticket médio por vendedor e data (`data_venda`).
 
 ### Integração Clinicorp
 * **`clinicorp_clientes_config`**: Credenciais da clínica (`id`, `nome_loja`, `email_login_clinicorp`, `senha_login_clinicorp`, `ativo`).
@@ -59,7 +66,12 @@ Todas as tabelas adotam prefixos do respectivo sistema e possuem **Row Level Sec
 * **`clinicorp_orcamentos`**: Listagem de propostas e orçamentos do período.
 * **`clinicorp_primeiras_consultas`**: Agendamentos de pacientes de primeira avaliação.
 * **`clinicorp_agendamentos_geral`**: Todos os agendamentos da clínica para taxas de comparecimento.
-* **`clinicorp_procedimentos_executados`**: [NOVO] Procedimentos executados no período por paciente, com profissional, região e valor.
+* **`clinicorp_procedimentos_executados`**: Procedimentos executados no período por paciente, com profissional, região e valor.
+
+### Integração PHIBO
+* **`phibo_clientes_config`**: Credenciais da loja (`id`, `nome_loja`, `email_login_phibo`, `senha_login_phibo`, `ativo`).
+* **`phibo_vendas`**: Vendas detalhadas do período com colunas:
+  * `cliente_id`, `origem`, `data_venda`, `hora_venda`, `cliente_nome`, `cliente_telefone`, `cliente_completo`, `vendedor`, `quantidade`, `sub_total`, `desconto`, `trocas`, `cashback`, `frete`, `valor_total`.
 
 *Políticas de RLS:* Adicionadas políticas `clinicorp_*_select`, `_insert`, `_update`, `_delete` para que a API do Next.js e relatórios manipulem e exibam as informações com segurança.
 
@@ -76,6 +88,27 @@ O fluxo da Clinicorp foi modularizado de forma idêntica à Giga Tech, garantind
    * Converte strings monetárias no padrão BR (ex: "2.050,00") para floats corretos de banco de dados.
    * **Regra de Data do Faturamento:** Como o relatório de faturamento não exporta uma data por linha, salvamos uma coluna `data` correspondente ao dia 01 do mês de início do filtro selecionado (ex: filtro de `01/06/2026` a `21/06/2026` salva com a data `2026-06-01`).
 3. **Idempotência Operacional:** O método `clean_period_data` limpa os dados existentes do cliente e período selecionados no Supabase antes de realizar a inserção em lote (`batch_insert`), prevenindo duplicidades em caso de reexecuções retroativas.
+
+---
+
+## 🐍 Implementação do Worker PHIBO
+
+O fluxo do PHIBO segue o mesmo padrão modular dos demais robôs:
+1. **Regra Crítica de Janela Operacional (Horários de Restrição):**
+   * O sistema PHIBO (`sistema.phibo.com.br`) bloqueia a exportação de relatórios durante a maior parte do horário comercial com um modal amarelo: *"Esta funcionalidade está desabilitada no momento para garantir o melhor desempenho do sistema..."*.
+   * **Janelas permitidas em dias úteis:** Entre **08:00 e 10:10** da manhã e após as **19:10** da noite.
+   * O `scraper.py` monitora esse pop-up e lança a exceção `PhiboWindowRestrictionError` com aviso claro para os logs.
+2. **Download e Navegação Playwright (Seleção Dinâmica de Período):**
+   * Login autenticado com email/senha cadastrados em `phibo_clientes_config`.
+   * Acesso à tela *"Relação de vendas"* e seleção da aba *"Mês da Venda"*.
+   * **Suporte a Mês Anterior:** O seletor de período do PHIBO utiliza componentes PrimeNG (`p-select`). O scraper detecta se o mês solicitado é o mês anterior (ex: `--month 9` ou fechamento mensal) e aciona automaticamente a opção *"Mês anterior"*, permitindo a extração do mês fechado completo com apenas um clique.
+   * Aciona o botão *"Exportar"* e aguarda a conclusão do download do arquivo `relacaoVendasMes.csv`.
+3. **Processamento do CSV:**
+   * Trata delimitadores (`;` ou `,`) e codificações (`utf-8-sig`, `utf-8`, `latin1`).
+   * Higienização de moeda brasileira (`R$`, separador de milhar e decimal).
+   * Separação inteligente de cliente e telefone quando presentes na mesma célula (ex: `(88) 99999-9999 - NOME CLIENTE`).
+4. **Idempotência Mensal:**
+   * O método `clean_vendas_mes` deleta todas as vendas do cliente no intervalo do dia 1 ao último dia do mês corrente antes de fazer o `batch_insert`.
 
 ---
 

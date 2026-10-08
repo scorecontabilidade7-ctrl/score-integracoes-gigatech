@@ -47,11 +47,18 @@ graph TD
 │   ├── database.py            # Operações no Supabase e idempotência
 │   └── tmp_downloads/
 │
-├── worker_clinicorp/          # 🐍 [NOVO] Automação e Processamento (Clinicorp)
+├── worker_clinicorp/          # 🐍 Automação e Processamento (Clinicorp)
 │   ├── main.py                # Orquestrador do robô da Clinicorp
 │   ├── scraper.py             # Playwright (Bypass de datas readonly via JS)
 │   ├── processor.py           # Parsing de XLS e regras de faturamento/valores
 │   ├── database.py            # Conexão, batch insert e idempotência
+│   └── tmp_downloads/
+│
+├── worker_phibo/              # 🐍 [NOVO] Automação e Processamento (PHIBO)
+│   ├── main.py                # Orquestrador e CLI (--test-offline / --headed)
+│   ├── scraper.py             # Playwright (Login, menu e download de CSV)
+│   ├── processor.py           # Parsing de CSV com formatação brasileira
+│   ├── database.py            # Carga mensal idempotente no Supabase
 │   └── tmp_downloads/
 │
 ├── web/                       # 🌐 Dashboard Administrativo Unificado (Next.js 15)
@@ -68,7 +75,8 @@ graph TD
 │   └── package.json
 │
 ├── gigatech_orchestrator.yaml # ⚙️ Fluxo Kestra da Giga Tech
-├── clinicorp_orchestrator.yaml# ⚙️ [NOVO] Fluxo Kestra da Clinicorp
+├── clinicorp_orchestrator.yaml# ⚙️ Fluxo Kestra da Clinicorp
+├── phibo_orchestrator.yaml    # ⚙️ [NOVO] Fluxo Kestra do PHIBO
 ├── requirements.txt           # Dependências do ambiente Python
 └── agent.md                   # Histórico de desenvolvimento do agente
 ```

@@ -35,5 +35,17 @@ export const SYSTEMS: Record<string, SystemConfig> = {
     passwordField: 'senha_login_clinicorp',
     iconName: 'activity',
     description: 'Automação Odontológica: Faturamento por Profissional, Orçamentos e Consultas.'
+  },
+  phibo: {
+    id: 'phibo',
+    name: 'PHIBO',
+    namespace: 'phibo.automacoes',
+    flowId: 'phibo_to_supabase',
+    webhookKey: 'PHIBO_EXTRACT_KEY',
+    configTable: 'phibo_clientes_config',
+    emailField: 'email_login_phibo',
+    passwordField: 'senha_login_phibo',
+    iconName: 'database',
+    description: 'Automação de Vendas e Giro de Estoque no ERP PHIBO.'
   }
 }
