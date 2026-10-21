@@ -101,6 +101,9 @@ def run_pipeline():
     print(f"[INFO] {len(clientes)} cliente(s) ativo(s) encontrado(s).")
     scraper = PhiboScraper(headless=not args.headed)
 
+    lojas_sucesso = []
+    lojas_falha = []
+
     for cliente in clientes:
         cid = cliente["id"]
         nome = cliente["nome_loja"]
@@ -111,7 +114,9 @@ def run_pipeline():
         print(f"[LOJA] Processando Loja: {nome} (ID: {cid})")
 
         if not email or not senha:
-            print(f"[ERRO] Credenciais ausentes para a loja {nome}. Pulando...")
+            erro_msg = f"Credenciais ausentes para a loja {nome}."
+            print(f"[ERRO] {erro_msg} Pulando...")
+            lojas_falha.append({"loja": nome, "motivo": erro_msg})
             continue
 
         try:
@@ -121,15 +126,24 @@ def run_pipeline():
             # Processamento e Gravação no Supabase
             total = process_vendas_csv(csv_path, cid, ano=ano, mes=mes)
             print(f"[SUCESSO] Loja {nome} processada: {total} vendas gravadas.")
+            lojas_sucesso.append({"loja": nome, "total_vendas": total})
 
         except PhiboWindowRestrictionError as we:
             print(f"[AVISO HORARIO] {we}")
+            lojas_falha.append({"loja": nome, "motivo": str(we)})
         except Exception as e:
             print(f"[ERRO] Falha ao processar loja {nome}: {e}")
+            lojas_falha.append({"loja": nome, "motivo": str(e)})
 
     print("=" * 60)
-    print("[FIM] WORKER PHIBO FINALIZADO.")
+    print(f"[RESUMO] WORKER PHIBO FINALIZADO.")
+    print(f"• Lojas com Sucesso: {len(lojas_sucesso)} -> {[l['loja'] for l in lojas_sucesso]}")
+    print(f"• Lojas com Falha:   {len(lojas_falha)} -> {[l['loja'] for l in lojas_falha]}")
     print("=" * 60)
+
+    if lojas_falha:
+        print(f"[ERRO GERAL] Houve falha no processamento de {len(lojas_falha)} loja(s).")
+        sys.exit(1)
 
 
 if __name__ == "__main__":

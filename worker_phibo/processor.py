@@ -95,12 +95,13 @@ def read_csv_rows(file_path: str):
 def process_vendas_csv(file_path: str, cliente_id: str, ano: int = None, mes: int = None) -> int:
     """
     Lê o CSV de Vendas gerado pelo PHIBO (relacaoVendasMes.csv),
-    transforma os dados, remove vendas anteriores do período (idempotência)
-    e insere em lote no Supabase.
+    transforma os dados, remove vendas anteriores do período (idempotência),
+    insere em lote no Supabase e realiza a conciliação/validação dos dados.
     """
     print(f"[PROCESS] Lendo arquivo de vendas PHIBO: {file_path}")
     
     rows = read_csv_rows(file_path)
+    total_linhas_csv = len(rows)
     if not rows:
         print("[AVISO] Arquivo CSV não contém linhas para processamento.")
         return 0
@@ -116,10 +117,12 @@ def process_vendas_csv(file_path: str, cliente_id: str, ano: int = None, mes: in
 
     registros = []
     meses_encontrados = set()
+    linhas_ignoradas = 0
 
     for row in rows:
         dt_venda = parse_date_br(row.get("Data da Venda"))
         if not dt_venda:
+            linhas_ignoradas += 1
             continue
 
         # Identificar mês/ano a partir dos dados
@@ -151,12 +154,50 @@ def process_vendas_csv(file_path: str, cliente_id: str, ano: int = None, mes: in
         print("[AVISO] Nenhuma linha válida para inserção após parsing.")
         return 0
 
+    # Totais calculados para auditoria e controle de valores
+    total_itens_pecas = sum(r["quantidade"] for r in registros)
+    total_faturamento = sum(r["valor_total"] for r in registros)
+    total_descontos = sum(r["desconto"] for r in registros)
+    total_subtotal = sum(r["sub_total"] for r in registros)
+
     # 1. Garantir idempotência: limpar dados dos meses presentes no arquivo
     alvos_limpeza = [(ano, mes)] if (ano and mes) else list(meses_encontrados)
     for a, m in alvos_limpeza:
         clean_vendas_mes(cliente_id, a, m)
 
     # 2. Inserir em lote no Supabase
-    batch_insert("phibo_vendas", registros)
-    print(f"[PROCESS] Sucesso! {len(registros)} vendas processadas e gravadas no Supabase.")
-    return len(registros)
+    inseridos_total = batch_insert("phibo_vendas", registros)
+
+    # 3. Conciliação e Validação dos Dados
+    divergencia_itens = len(registros) - inseridos_total
+    periodo_str = f"{mes:02d}/{ano}" if (mes and ano) else f"{sorted(list(meses_encontrados))}"
+
+    print("=" * 70)
+    print(f"[AUDITORIA] CONCILIAÇÃO DE CARGA PHIBO - CLIENTE: {cliente_id}")
+    print(f"[AUDITORIA] Período Alvo: {periodo_str}")
+    print("-" * 70)
+    print(f"• Linhas brutas no arquivo CSV:    {total_linhas_csv}")
+    print(f"• Registros de vendas tratados:    {len(registros)}")
+    if linhas_ignoradas > 0:
+        print(f"• Linhas ignoradas (sem data):     {linhas_ignoradas}")
+    print(f"• Registros gravados no Supabase:  {inseridos_total}")
+    print(f"• Quantidade total de peças:       {total_itens_pecas}")
+    print(f"• Subtotal das Vendas:             R$ {total_subtotal:,.2f}")
+    print(f"• Total de Descontos concedidos:   R$ {total_descontos:,.2f}")
+    print(f"• Faturamento Total Líquido (R$):  R$ {total_faturamento:,.2f}")
+    print(f"• Divergência de Inserção:         {divergencia_itens} item(ns)")
+    print("-" * 70)
+
+    if divergencia_itens != 0:
+        msg_erro = (
+            f"[ERRO DE CONCILIAÇÃO] Divergência detectada! "
+            f"Esperado gravar {len(registros)} vendas, mas o Supabase confirmou {inseridos_total}."
+        )
+        print(msg_erro)
+        print("=" * 70)
+        raise ValueError(msg_erro)
+
+    print("[STATUS] 100% DOS DADOS CONCILIADOS E GRAVADOS COM SUCESSO!")
+    print("=" * 70)
+
+    return inseridos_total

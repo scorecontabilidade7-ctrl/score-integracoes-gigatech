@@ -98,17 +98,20 @@ O fluxo do PHIBO segue o mesmo padrão modular dos demais robôs:
    * O sistema PHIBO (`sistema.phibo.com.br`) bloqueia a exportação de relatórios durante a maior parte do horário comercial com um modal amarelo: *"Esta funcionalidade está desabilitada no momento para garantir o melhor desempenho do sistema..."*.
    * **Janelas permitidas em dias úteis:** Entre **08:00 e 10:10** da manhã e após as **19:10** da noite.
    * O `scraper.py` monitora esse pop-up e lança a exceção `PhiboWindowRestrictionError` com aviso claro para os logs.
-2. **Download e Navegação Playwright (Seleção Dinâmica de Período):**
+2. **Download e Navegação Playwright (Seleção Dinâmica de Período e Resiliência PrimeNG):**
    * Login autenticado com email/senha cadastrados em `phibo_clientes_config`.
-   * Acesso à tela *"Relação de vendas"* e seleção da aba *"Mês da Venda"*.
-   * **Suporte a Mês Anterior:** O seletor de período do PHIBO utiliza componentes PrimeNG (`p-select`). O scraper detecta se o mês solicitado é o mês anterior (ex: `--month 9` ou fechamento mensal) e aciona automaticamente a opção *"Mês anterior"*, permitindo a extração do mês fechado completo com apenas um clique.
+   * Abertura resiliente com hover e clique explícito no menu superior *"Vendas"* e submenu *"Relação de vendas"*, com até 4 tentativas automáticas para evitar falhas em contêineres headless.
+   * Seleção garantida da aba *"Mês da Venda"*.
+   * **Suporte a Mês Anterior e Retroativos:** O seletor de período do PHIBO utiliza componentes PrimeNG (`p-select`). O scraper detecta se o mês solicitado é o mês atual (padrão), o mês anterior (aciona *"Mês anterior"*) ou retroativos (aciona *"Outro mês"*), permitindo a extração do mês completo.
    * Aciona o botão *"Exportar"* e aguarda a conclusão do download do arquivo `relacaoVendasMes.csv`.
-3. **Processamento do CSV:**
+3. **Processamento do CSV e Auditoria de Conciliação:**
    * Trata delimitadores (`;` ou `,`) e codificações (`utf-8-sig`, `utf-8`, `latin1`).
    * Higienização de moeda brasileira (`R$`, separador de milhar e decimal).
    * Separação inteligente de cliente e telefone quando presentes na mesma célula (ex: `(88) 99999-9999 - NOME CLIENTE`).
-4. **Idempotência Mensal:**
+   * **Camada de Auditoria e Batimento:** Compara o total de linhas brutas lidas do CSV com os registros de vendas tratados e os registros efetivamente confirmados pelo Supabase. Calcula somatório financeiro (R$ faturamento líquido, descontos e peças) e imprime bloco de auditoria detalhado, abortando a execução se houver qualquer divergência de inserção.
+4. **Idempotência Mensal e Propagação de Erros:**
    * O método `clean_vendas_mes` deleta todas as vendas do cliente no intervalo do dia 1 ao último dia do mês corrente antes de fazer o `batch_insert`.
+   * Caso alguma loja apresente erro durante o download ou carga, o `main.py` encerra com código de saída de erro (`sys.exit(1)`), garantindo que o Kestra reporte honestamente o status **FAILED** em vez de mascarar com SUCCESS.
 
 ---
 

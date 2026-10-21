@@ -31,25 +31,30 @@ def get_active_clients(cliente_id: str = None):
     return res.data
 
 
-def batch_insert(table_name: str, data: list, batch_size: int = 500):
+def batch_insert(table_name: str, data: list, batch_size: int = 500) -> int:
     """
-    Insere dados em lote na tabela do Supabase.
+    Insere dados em lote na tabela do Supabase e retorna a quantidade inserida.
     """
     if not data:
         print(f"[BD] Nenhuma linha para inserir na tabela {table_name}.")
-        return
+        return 0
 
     total = len(data)
     print(f"[BD] Inserindo {total} registros na tabela {table_name} (lotes de {batch_size})...")
     
+    total_inserido = 0
     for i in range(0, total, batch_size):
         lote = data[i:i + batch_size]
         try:
-            supabase.table(table_name).insert(lote).execute()
-            print(f"[BD] {table_name}: Inseridos {i + len(lote)}/{total}")
+            res = supabase.table(table_name).insert(lote).execute()
+            qtd_lote = len(res.data) if (res and hasattr(res, "data") and res.data) else len(lote)
+            total_inserido += qtd_lote
+            print(f"[BD] {table_name}: Inseridos {total_inserido}/{total}")
         except Exception as e:
             print(f"[ERRO] Falha ao inserir lote em {table_name}: {e}")
             raise e
+
+    return total_inserido
 
 
 def clean_vendas_mes(cliente_id: str, ano: int, mes: int):
