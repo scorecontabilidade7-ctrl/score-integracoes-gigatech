@@ -100,7 +100,8 @@ O fluxo do PHIBO segue o mesmo padrão modular dos demais robôs:
    * O `scraper.py` monitora esse pop-up e lança a exceção `PhiboWindowRestrictionError` com aviso claro para os logs.
 2. **Download e Navegação Playwright (Seleção Dinâmica de Período e Resiliência PrimeNG):**
    * Login autenticado com email/senha cadastrados em `phibo_clientes_config`.
-   * Abertura resiliente com hover e clique explícito no menu superior *"Vendas"* e submenu *"Relação de vendas"*, com até 4 tentativas automáticas para evitar falhas em contêineres headless.
+   * Fechamento automático de modais promocionais/anúncios pós-login (ex: pop-up de novidades do PDV) via tecla `Escape` e varredura de seletores de fechar.
+   * Abertura resiliente com hover e clique explícito no menu superior *"Vendas"* e submenu *"Relação de vendas"*, acompanhado de fallback de navegação direta para `https://app.phibo.com.br/vendas/relacao-vendas` caso a sessão seja direcionada ao dashboard do novo aplicativo.
    * Seleção garantida da aba *"Mês da Venda"*.
    * **Suporte a Mês Anterior e Retroativos:** O seletor de período do PHIBO utiliza componentes PrimeNG (`p-select`). O scraper detecta se o mês solicitado é o mês atual (padrão), o mês anterior (aciona *"Mês anterior"*) ou retroativos (aciona *"Outro mês"*), permitindo a extração do mês completo.
    * Aciona o botão *"Exportar"* e aguarda a conclusão do download do arquivo `relacaoVendasMes.csv`.

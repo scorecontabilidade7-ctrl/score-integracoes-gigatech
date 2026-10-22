@@ -31,6 +31,32 @@ class PhiboScraper:
         except PlaywrightTimeoutError:
             pass
 
+    def fechar_modais_e_avisos(self, page: Page):
+        """Fecha modais promocionais, avisos e pop-ups pós-login."""
+        try:
+            page.keyboard.press("Escape")
+            time.sleep(0.3)
+        except Exception:
+            pass
+
+        selectors_fechar = [
+            ".p-dialog-header-close",
+            "button[aria-label='Close']",
+            "button:has(.pi-times)",
+            "i.pi-times",
+            ".ui-dialog-titlebar-close",
+            "button:has-text('Fechar')",
+            "button:has-text('Entendi')"
+        ]
+        for sel in selectors_fechar:
+            try:
+                elem = page.locator(sel).first
+                if elem.is_visible(timeout=500):
+                    elem.click()
+                    time.sleep(0.5)
+            except Exception:
+                pass
+
     def run_download_vendas(self, email: str, senha: str, ano: int = None, mes: int = None) -> str:
         agora = datetime.now()
         target_year = ano or agora.year
@@ -88,55 +114,83 @@ class PhiboScraper:
                 # Aguarda exibição da interface pós-login
                 print("[SCRAPER] [1/4] Aguardando interface pós-login...")
                 try:
-                    page.locator("a:has-text('Vendas'), p-menubar, nav").first.wait_for(state="visible", timeout=45000)
+                    page.locator("a:has-text('Vendas'), span:has-text('Vendas'), p-menubar, nav").first.wait_for(state="visible", timeout=45000)
                     print("[SCRAPER] [1/4] Login realizado com sucesso!")
                 except Exception as e:
                     print(f"[SCRAPER] [AVISO] Timeout aguardando navbar pós-login: {e}")
+
+                # Fecha quaisquer modais promocionais ou comunicados
+                self.fechar_modais_e_avisos(page)
 
                 # 2. Navegação até Relação de vendas
                 print("[SCRAPER] [2/4] Acessando tela 'Relação de vendas'...")
 
                 for tentativa in range(4):
-                    if page.get_by_text("Mês da Venda", exact=False).first.is_visible():
+                    self.fechar_modais_e_avisos(page)
+
+                    # Verifica se já está na tela desejada
+                    if "relacao-vendas" in page.url or page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda')").first.is_visible():
                         print("[SCRAPER] [2/4] Tela 'Relação de vendas' detectada com sucesso!")
                         break
 
                     print(f"[SCRAPER] [2/4] Tentativa {tentativa + 1}/4 de abrir menu 'Vendas' -> 'Relação de vendas'...")
 
-                    # Fecha possíveis pop-ups/modais de aviso
-                    try:
-                        dialog_close = page.locator(".p-dialog-header-close, button:has-text('Fechar')").first
-                        if dialog_close.is_visible(timeout=1000):
-                            dialog_close.click()
-                            time.sleep(1)
-                    except Exception:
-                        pass
+                    # Se já foi redirecionado para app.phibo.com.br mas caiu na página inicial/dashboard
+                    if "app.phibo.com.br" in page.url and "relacao-vendas" not in page.url:
+                        print("[SCRAPER] [2/4] Sessão já ativa no app.phibo.com.br. Navegando diretamente para /vendas/relacao-vendas...")
+                        try:
+                            page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="networkidle", timeout=20000)
+                            time.sleep(2)
+                            if "relacao-vendas" in page.url:
+                                print("[SCRAPER] [2/4] Tela 'Relação de vendas' carregada via navegação direta!")
+                                break
+                        except Exception as e_direct:
+                            print(f"[SCRAPER] [2/4] Aviso navegação direta: {e_direct}")
 
-                    # Dispara o clique no link de 'Relação de vendas' (aciona PrimeFaces AJAX)
-                    clicked = page.evaluate("""() => {
-                        const links = Array.from(document.querySelectorAll('a.ui-menuitem-link, a'));
-                        const link = links.find(el => el.textContent && el.textContent.includes('Relação de vendas'));
-                        if (link) {
-                            link.click();
-                            return true;
-                        }
-                        return false;
-                    }""")
-                    print(f"[SCRAPER] [2/4] Clique no menu disparado via JS: {clicked}")
-
-                    # Aguarda redirecionamento para app.phibo.com.br/vendas/relacao-vendas
+                    # Tenta navegação nativa no menu 'Vendas' -> 'Relação de vendas'
                     try:
-                        page.wait_for_load_state("networkidle", timeout=15000)
-                    except Exception:
-                        pass
-                    time.sleep(3)
+                        menu_vendas = page.locator("a.ui-submenu-link:has-text('Vendas'), li[role='menuitem']:has-text('Vendas'), a:has-text('Vendas'), span:has-text('Vendas')").filter(has_text="Vendas").first
+                        if menu_vendas.is_visible(timeout=3000):
+                            menu_vendas.hover()
+                            time.sleep(0.5)
+                            menu_vendas.click()
+                            time.sleep(0.5)
+
+                            sub_relacao = page.locator("a:has-text('Relação de vendas'), span:has-text('Relação de vendas')").filter(has_text="Relação de vendas").first
+                            if sub_relacao.is_visible(timeout=3000):
+                                sub_relacao.click()
+                                print("[SCRAPER] [2/4] Clique no submenu 'Relação de vendas' efetuado com sucesso!")
+                                try:
+                                    page.wait_for_load_state("networkidle", timeout=20000)
+                                except Exception:
+                                    pass
+                                time.sleep(3)
+
+                                # Se redirecionou para app.phibo.com.br mas não para relacao-vendas diretamente
+                                if "app.phibo.com.br" in page.url and "relacao-vendas" not in page.url:
+                                    page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="networkidle", timeout=20000)
+                                    time.sleep(2)
+
+                                if "relacao-vendas" in page.url or page.locator("p-tab:has-text('Mês da Venda')").first.is_visible():
+                                    print("[SCRAPER] [2/4] Tela 'Relação de vendas' alcançada!")
+                                    break
+                    except Exception as e_menu:
+                        print(f"[SCRAPER] [2/4] Aviso na tentativa de menu: {e_menu}")
+
+                    time.sleep(2)
 
                 # 3. Aba 'Mês da Venda'
                 print("[SCRAPER] [3/4] Clicando na aba 'Mês da Venda'...")
-                aba_mes = page.get_by_text("Mês da Venda", exact=False).first
-                aba_mes.wait_for(state="visible", timeout=20000)
+                self.fechar_modais_e_avisos(page)
+                aba_mes = page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda')").first
+                if not aba_mes.is_visible():
+                    aba_mes = page.get_by_text("Mês da Venda", exact=False).first
+                aba_mes.wait_for(state="visible", timeout=25000)
                 aba_mes.click()
-                page.wait_for_load_state("networkidle", timeout=30000)
+                try:
+                    page.wait_for_load_state("networkidle", timeout=20000)
+                except Exception:
+                    pass
                 time.sleep(2)
 
                 if is_mes_anterior:
@@ -170,7 +224,7 @@ class PhiboScraper:
                 btn_exportar.wait_for(state="visible", timeout=15000)
 
                 print("[SCRAPER] [4/4] Clicando em Exportar e aguardando download...")
-                with page.expect_download(timeout=30000) as download_info:
+                with page.expect_download(timeout=35000) as download_info:
                     btn_exportar.click()
                     
                     # Checagem imediata: se estiver fora da janela, detecta o pop-up
