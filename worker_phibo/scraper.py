@@ -19,11 +19,23 @@ class PhiboScraper:
         os.makedirs(self.download_dir, exist_ok=True)
 
     def check_modal_bloqueio(self, page: Page):
-        """Verifica se o modal amarelo de restrição de horário apareceu na tela."""
+        """Verifica se a notificação/modal de restrição de horário apareceu na tela."""
         try:
-            alerta = page.locator("text=Esta funcionalidade está desabilitada").first
+            # 1. Verifica toast PrimeNG ou dialog
+            alerta = page.locator(".p-toast, p-toast, p-dialog, .p-dialog, [role='dialog'], [role='alert']").filter(
+                has_text="Esta funcionalidade está desabilitada"
+            ).first
             if alerta.is_visible(timeout=3000):
                 msg = alerta.inner_text().strip()
+                print(f"[SCRAPER] [AVISO PHIBO] {msg}")
+                raise PhiboWindowRestrictionError(
+                    f"PHIBO bloqueou o download por estar fora da janela permitida (08:00-10:10 / a partir das 19:10). Mensagem: {msg}"
+                )
+            
+            # 2. Verifica qualquer elemento de texto na página
+            alerta_txt = page.locator("text=Esta funcionalidade está desabilitada").first
+            if alerta_txt.is_visible(timeout=1000):
+                msg = alerta_txt.inner_text().strip()
                 print(f"[SCRAPER] [AVISO PHIBO] {msg}")
                 raise PhiboWindowRestrictionError(
                     f"PHIBO bloqueou o download por estar fora da janela permitida (08:00-10:10 / a partir das 19:10). Mensagem: {msg}"
@@ -42,7 +54,12 @@ class PhiboScraper:
         # Dispara via JS a limpeza de modais de marketing (formMarketing) e remoção de overlays bloqueadores
         try:
             page.evaluate("""() => {
-                // 1. Clica em botões de fechar de modais conhecidos
+                // 1. Remove seções e overlays cinzas bloqueadoras de clique
+                document.querySelectorAll('section, div.absolute, .ui-widget-overlay, .ui-dialog-mask, .p-dialog-mask').forEach(el => {
+                    try { el.remove(); } catch(e) {}
+                });
+
+                // 2. Clica em botões de fechar de modais conhecidos
                 const closeBtns = document.querySelectorAll(
                     "[id*='formMarketing'] button, [id*='formMarketing'] a, [id*='formMarketing'] [id*='idt'], " +
                     "[id*='Marketing'] .ui-icon-closethick, [id*='Marketing'] [aria-label*='Close'], " +
@@ -50,11 +67,6 @@ class PhiboScraper:
                 );
                 closeBtns.forEach(b => {
                     try { b.click(); } catch(e) {}
-                });
-
-                // 2. Remove overlays cinzas bloqueadoras de clique
-                document.querySelectorAll('.ui-widget-overlay, .ui-dialog-mask, .p-dialog-mask').forEach(el => {
-                    try { el.remove(); } catch(e) {}
                 });
 
                 // 3. Esconde qualquer modal de marketing persistente
@@ -185,31 +197,35 @@ class PhiboScraper:
                             menu_vendas.hover()
                             time.sleep(0.5)
 
-                        # 2. Clica no submenu 'Relação de vendas'
-                        sub_relacao = page.locator("a:has-text('Relação de vendas'), span:has-text('Relação de vendas')").filter(has_text="Relação de vendas").first
-                        if sub_relacao.is_visible(timeout=3000):
-                            sub_relacao.click()
-                            print("[SCRAPER] [2/4] Clique no submenu 'Relação de vendas' efetuado com sucesso!")
-                        else:
-                            # Se não ficou visível pelo hover, dispara o clique via JS no link de Relação de vendas
-                            clicked_js = page.evaluate("""() => {
-                                const links = Array.from(document.querySelectorAll('a.ui-menuitem-link, a'));
-                                const link = links.find(el => el.textContent && el.textContent.includes('Relação de vendas'));
-                                if (link) {
-                                    link.click();
+                        # 2. Clica no submenu 'Relação de vendas' buscando o elemento exato
+                        clicked_js = page.evaluate("""() => {
+                            const span = Array.from(document.querySelectorAll('span.ui-menuitem-text')).find(
+                                s => s.textContent && s.textContent.includes('Relação de vendas')
+                            );
+                            if (span) {
+                                const a = span.closest('a');
+                                if (a) {
+                                    a.click();
                                     return true;
                                 }
-                                return false;
-                            }""")
-                            print(f"[SCRAPER] [2/4] Disparo JS de 'Relação de vendas': {clicked_js}")
+                            }
+                            return false;
+                        }""")
 
-                        try:
-                            page.wait_for_load_state("networkidle", timeout=20000)
-                        except Exception:
-                            pass
-                        time.sleep(3)
+                        if not clicked_js:
+                            sub_relacao = page.locator("span.ui-menuitem-text:has-text('Relação de vendas')").first
+                            if sub_relacao.is_visible(timeout=2000):
+                                sub_relacao.click(force=True)
 
-                        # Se após o clique redirecionou para o novo domínio app.phibo.com.br mas parou no dashboard
+                        print("[SCRAPER] [2/4] Clique no item 'Relação de vendas' efetuado!")
+
+                        # Aguarda transição para o novo domínio app.phibo.com.br
+                        for _ in range(8):
+                            time.sleep(1)
+                            if "app.phibo.com.br" in page.url or "relacao-vendas" in page.url:
+                                break
+
+                        # Se após o redirecionamento parou no dashboard/tela inicial
                         if "app.phibo.com.br" in page.url and "relacao-vendas" not in page.url:
                             page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="networkidle", timeout=20000)
                             time.sleep(2)
@@ -267,19 +283,23 @@ class PhiboScraper:
                 btn_exportar.wait_for(state="visible", timeout=15000)
 
                 print("[SCRAPER] [4/4] Clicando em Exportar e aguardando download...")
-                with page.expect_download(timeout=35000) as download_info:
-                    btn_exportar.click()
-                    
-                    # Checagem imediata: se estiver fora da janela, detecta o pop-up
+                try:
+                    with page.expect_download(timeout=12000) as download_info:
+                        btn_exportar.click()
+                        time.sleep(1.5)
+                        # Checagem imediata: se estiver fora da janela, detecta o pop-up/toast
+                        self.check_modal_bloqueio(page)
+
+                    download = download_info.value
+                    nome_arquivo = download.suggested_filename or f"relacaoVendasMes_{int(time.time())}.csv"
+                    destino = os.path.join(self.download_dir, nome_arquivo)
+                    download.save_as(destino)
+                    print(f"[SCRAPER] Download concluído com sucesso: {destino}")
+
+                    return destino
+                except PlaywrightTimeoutError:
                     self.check_modal_bloqueio(page)
-
-                download = download_info.value
-                nome_arquivo = download.suggested_filename or f"relacaoVendasMes_{int(time.time())}.csv"
-                destino = os.path.join(self.download_dir, nome_arquivo)
-                download.save_as(destino)
-                print(f"[SCRAPER] Download concluído com sucesso: {destino}")
-
-                return destino
+                    raise
 
             except Exception as e:
                 try:
