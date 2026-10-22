@@ -32,28 +32,58 @@ class PhiboScraper:
             pass
 
     def fechar_modais_e_avisos(self, page: Page):
-        """Fecha modais promocionais, avisos e pop-ups pós-login."""
+        """Fecha modais promocionais, avisos e pop-ups pós-login no PrimeFaces e PrimeNG."""
         try:
             page.keyboard.press("Escape")
+            time.sleep(0.2)
+        except Exception:
+            pass
+
+        # Dispara via JS a limpeza de modais de marketing (formMarketing) e remoção de overlays bloqueadores
+        try:
+            page.evaluate("""() => {
+                // 1. Clica em botões de fechar de modais conhecidos
+                const closeBtns = document.querySelectorAll(
+                    "[id*='formMarketing'] button, [id*='formMarketing'] a, [id*='formMarketing'] [id*='idt'], " +
+                    "[id*='Marketing'] .ui-icon-closethick, [id*='Marketing'] [aria-label*='Close'], " +
+                    ".ui-dialog-titlebar-close, .ui-dialog-header-close, .p-dialog-header-close, button[aria-label='Close'], button:has-text('Fechar')"
+                );
+                closeBtns.forEach(b => {
+                    try { b.click(); } catch(e) {}
+                });
+
+                // 2. Remove overlays cinzas bloqueadoras de clique
+                document.querySelectorAll('.ui-widget-overlay, .ui-dialog-mask, .p-dialog-mask').forEach(el => {
+                    try { el.remove(); } catch(e) {}
+                });
+
+                // 3. Esconde qualquer modal de marketing persistente
+                document.querySelectorAll("[id*='Marketing'], [id*='marketing']").forEach(el => {
+                    try { el.style.display = 'none'; } catch(e) {}
+                });
+            }""")
             time.sleep(0.3)
         except Exception:
             pass
 
         selectors_fechar = [
+            "[id*='formMarketing'] [id*='idt']",
+            "[id*='formMarketing'] button",
+            "[id*='formMarketing'] a",
+            ".ui-dialog-titlebar-close",
             ".p-dialog-header-close",
             "button[aria-label='Close']",
             "button:has(.pi-times)",
             "i.pi-times",
-            ".ui-dialog-titlebar-close",
             "button:has-text('Fechar')",
             "button:has-text('Entendi')"
         ]
         for sel in selectors_fechar:
             try:
                 elem = page.locator(sel).first
-                if elem.is_visible(timeout=500):
+                if elem.is_visible(timeout=300):
                     elem.click()
-                    time.sleep(0.5)
+                    time.sleep(0.3)
             except Exception:
                 pass
 
@@ -125,7 +155,7 @@ class PhiboScraper:
                 # 2. Navegação até Relação de vendas
                 print("[SCRAPER] [2/4] Acessando tela 'Relação de vendas'...")
 
-                for tentativa in range(4):
+                for tentativa in range(5):
                     self.fechar_modais_e_avisos(page)
 
                     # Verifica se já está na tela desejada
@@ -133,7 +163,7 @@ class PhiboScraper:
                         print("[SCRAPER] [2/4] Tela 'Relação de vendas' detectada com sucesso!")
                         break
 
-                    print(f"[SCRAPER] [2/4] Tentativa {tentativa + 1}/4 de abrir menu 'Vendas' -> 'Relação de vendas'...")
+                    print(f"[SCRAPER] [2/4] Tentativa {tentativa + 1}/5 de abrir menu 'Vendas' -> 'Relação de vendas'...")
 
                     # Se já foi redirecionado para app.phibo.com.br mas caiu na página inicial/dashboard
                     if "app.phibo.com.br" in page.url and "relacao-vendas" not in page.url:
@@ -141,39 +171,52 @@ class PhiboScraper:
                         try:
                             page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="networkidle", timeout=20000)
                             time.sleep(2)
-                            if "relacao-vendas" in page.url:
+                            if "relacao-vendas" in page.url or page.locator("p-tab:has-text('Mês da Venda')").first.is_visible():
                                 print("[SCRAPER] [2/4] Tela 'Relação de vendas' carregada via navegação direta!")
                                 break
                         except Exception as e_direct:
                             print(f"[SCRAPER] [2/4] Aviso navegação direta: {e_direct}")
 
-                    # Tenta navegação nativa no menu 'Vendas' -> 'Relação de vendas'
+                    # Se ainda estiver no sistema.phibo.com.br:
                     try:
-                        menu_vendas = page.locator("a.ui-submenu-link:has-text('Vendas'), li[role='menuitem']:has-text('Vendas'), a:has-text('Vendas'), span:has-text('Vendas')").filter(has_text="Vendas").first
+                        # 1. Abre o menu 'Vendas' fazendo hover (sem clicar para não fechar no PrimeFaces)
+                        menu_vendas = page.locator("li[role='menuitem']:has-text('Vendas'), a.ui-submenu-link:has-text('Vendas'), a:has-text('Vendas')").filter(has_text="Vendas").first
                         if menu_vendas.is_visible(timeout=3000):
                             menu_vendas.hover()
                             time.sleep(0.5)
-                            menu_vendas.click()
-                            time.sleep(0.5)
 
-                            sub_relacao = page.locator("a:has-text('Relação de vendas'), span:has-text('Relação de vendas')").filter(has_text="Relação de vendas").first
-                            if sub_relacao.is_visible(timeout=3000):
-                                sub_relacao.click()
-                                print("[SCRAPER] [2/4] Clique no submenu 'Relação de vendas' efetuado com sucesso!")
-                                try:
-                                    page.wait_for_load_state("networkidle", timeout=20000)
-                                except Exception:
-                                    pass
-                                time.sleep(3)
+                        # 2. Clica no submenu 'Relação de vendas'
+                        sub_relacao = page.locator("a:has-text('Relação de vendas'), span:has-text('Relação de vendas')").filter(has_text="Relação de vendas").first
+                        if sub_relacao.is_visible(timeout=3000):
+                            sub_relacao.click()
+                            print("[SCRAPER] [2/4] Clique no submenu 'Relação de vendas' efetuado com sucesso!")
+                        else:
+                            # Se não ficou visível pelo hover, dispara o clique via JS no link de Relação de vendas
+                            clicked_js = page.evaluate("""() => {
+                                const links = Array.from(document.querySelectorAll('a.ui-menuitem-link, a'));
+                                const link = links.find(el => el.textContent && el.textContent.includes('Relação de vendas'));
+                                if (link) {
+                                    link.click();
+                                    return true;
+                                }
+                                return false;
+                            }""")
+                            print(f"[SCRAPER] [2/4] Disparo JS de 'Relação de vendas': {clicked_js}")
 
-                                # Se redirecionou para app.phibo.com.br mas não para relacao-vendas diretamente
-                                if "app.phibo.com.br" in page.url and "relacao-vendas" not in page.url:
-                                    page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="networkidle", timeout=20000)
-                                    time.sleep(2)
+                        try:
+                            page.wait_for_load_state("networkidle", timeout=20000)
+                        except Exception:
+                            pass
+                        time.sleep(3)
 
-                                if "relacao-vendas" in page.url or page.locator("p-tab:has-text('Mês da Venda')").first.is_visible():
-                                    print("[SCRAPER] [2/4] Tela 'Relação de vendas' alcançada!")
-                                    break
+                        # Se após o clique redirecionou para o novo domínio app.phibo.com.br mas parou no dashboard
+                        if "app.phibo.com.br" in page.url and "relacao-vendas" not in page.url:
+                            page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="networkidle", timeout=20000)
+                            time.sleep(2)
+
+                        if "relacao-vendas" in page.url or page.locator("p-tab:has-text('Mês da Venda')").first.is_visible():
+                            print("[SCRAPER] [2/4] Tela 'Relação de vendas' alcançada!")
+                            break
                     except Exception as e_menu:
                         print(f"[SCRAPER] [2/4] Aviso na tentativa de menu: {e_menu}")
 

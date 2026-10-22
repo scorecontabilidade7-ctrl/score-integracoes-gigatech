@@ -47,11 +47,17 @@ def run_pipeline():
             if len(partes) == 3:
                 env_month = partes[1]
                 env_year = partes[2]
+            elif len(partes) == 2:
+                env_month = partes[1]
+                env_year = str(agora.year)
         elif "-" in clean_dt:
             partes = clean_dt.split("-")
             if len(partes) == 3:
                 env_year = partes[0]
                 env_month = partes[1]
+            elif len(partes) == 2:
+                env_month = partes[0]
+                env_year = str(agora.year)
 
     target_client_id = args.client_id or (env_cid if env_cid and env_cid.strip() and env_cid != "TODOS" else None)
     ano = args.year or (int(env_year) if env_year and str(env_year).isdigit() else agora.year)
