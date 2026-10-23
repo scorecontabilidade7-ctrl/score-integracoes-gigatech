@@ -167,87 +167,77 @@ class PhiboScraper:
                 # 2. Navegação até Relação de vendas
                 print("[SCRAPER] [2/4] Acessando tela 'Relação de vendas'...")
 
-                for tentativa in range(5):
+                for tentativa in range(3):
                     self.fechar_modais_e_avisos(page)
 
-                    # Verifica se já está na tela desejada
-                    if "relacao-vendas" in page.url or page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda')").first.is_visible():
+                    if "relacao-vendas" in page.url and page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda')").first.is_visible():
                         print("[SCRAPER] [2/4] Tela 'Relação de vendas' detectada com sucesso!")
                         break
 
-                    print(f"[SCRAPER] [2/4] Tentativa {tentativa + 1}/5 de abrir menu 'Vendas' -> 'Relação de vendas'...")
+                    print(f"[SCRAPER] [2/4] Tentativa {tentativa + 1}/3 de abrir menu 'Vendas' -> 'Relação de vendas'...")
 
-                    # Se já foi redirecionado para app.phibo.com.br mas caiu na página inicial/dashboard
-                    if "app.phibo.com.br" in page.url and "relacao-vendas" not in page.url:
-                        print("[SCRAPER] [2/4] Sessão já ativa no app.phibo.com.br. Navegando diretamente para /vendas/relacao-vendas...")
+                    # 1. Se estiver no sistema legado sistema.phibo.com.br:
+                    if "sistema.phibo.com.br" in page.url:
                         try:
-                            page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="networkidle", timeout=20000)
-                            time.sleep(2)
-                            if "relacao-vendas" in page.url or page.locator("p-tab:has-text('Mês da Venda')").first.is_visible():
-                                print("[SCRAPER] [2/4] Tela 'Relação de vendas' carregada via navegação direta!")
-                                break
-                        except Exception as e_direct:
-                            print(f"[SCRAPER] [2/4] Aviso navegação direta: {e_direct}")
+                            # Hover no menu Vendas
+                            menu_vendas = page.locator("li[role='menuitem']:has-text('Vendas'), a.ui-submenu-link:has-text('Vendas'), a:has-text('Vendas')").filter(has_text="Vendas").first
+                            if menu_vendas.is_visible(timeout=3000):
+                                menu_vendas.hover()
+                                time.sleep(0.5)
 
-                    # Se ainda estiver no sistema.phibo.com.br:
-                    try:
-                        # 1. Abre o menu 'Vendas' fazendo hover (sem clicar para não fechar no PrimeFaces)
-                        menu_vendas = page.locator("li[role='menuitem']:has-text('Vendas'), a.ui-submenu-link:has-text('Vendas'), a:has-text('Vendas')").filter(has_text="Vendas").first
-                        if menu_vendas.is_visible(timeout=3000):
-                            menu_vendas.hover()
-                            time.sleep(0.5)
-
-                        # 2. Clica no submenu 'Relação de vendas' buscando o elemento exato
-                        clicked_js = page.evaluate("""() => {
-                            const span = Array.from(document.querySelectorAll('span.ui-menuitem-text')).find(
-                                s => s.textContent && s.textContent.includes('Relação de vendas')
-                            );
-                            if (span) {
-                                const a = span.closest('a');
-                                if (a) {
-                                    a.click();
-                                    return true;
+                            # Dispara o clique no item de submenu via JS (evita fechamento acidental de dropdown)
+                            clicked_js = page.evaluate("""() => {
+                                const span = Array.from(document.querySelectorAll('span.ui-menuitem-text')).find(
+                                    s => s.textContent && s.textContent.includes('Relação de vendas')
+                                );
+                                if (span) {
+                                    const a = span.closest('a');
+                                    if (a) {
+                                        a.click();
+                                        return true;
+                                    }
                                 }
-                            }
-                            return false;
-                        }""")
+                                return false;
+                            }""")
 
-                        if not clicked_js:
-                            sub_relacao = page.locator("span.ui-menuitem-text:has-text('Relação de vendas')").first
-                            if sub_relacao.is_visible(timeout=2000):
-                                sub_relacao.click(force=True)
+                            if not clicked_js:
+                                sub_relacao = page.locator("span.ui-menuitem-text:has-text('Relação de vendas')").first
+                                if sub_relacao.is_visible(timeout=2000):
+                                    sub_relacao.click(force=True)
 
-                        print("[SCRAPER] [2/4] Clique no item 'Relação de vendas' efetuado!")
+                            print("[SCRAPER] [2/4] Clique no item 'Relação de vendas' efetuado! Aguardando transição...")
+                        except Exception as e_click:
+                            print(f"[SCRAPER] [2/4] Aviso clique no menu: {e_click}")
 
-                        # Aguarda transição para o novo domínio app.phibo.com.br
-                        for _ in range(8):
-                            time.sleep(1)
-                            if "app.phibo.com.br" in page.url or "relacao-vendas" in page.url:
+                    # 2. Aguarda a transição natural: sistema.phibo -> iniciojsf?token=... -> /vendas/relacao-vendas
+                    try:
+                        page.wait_for_url("**/relacao-vendas**", timeout=30000)
+                        print("[SCRAPER] [2/4] URL 'relacao-vendas' alcançada com sucesso!")
+                        break
+                    except Exception:
+                        if "iniciojsf" in page.url or "token=" in page.url:
+                            print("[SCRAPER] [2/4] Processamento do token em andamento na tela intermediária, aguardando...")
+                            try:
+                                page.wait_for_url("**/relacao-vendas**", timeout=20000)
                                 break
-
-                        # Se após o redirecionamento parou no dashboard/tela inicial
-                        if "app.phibo.com.br" in page.url and "relacao-vendas" not in page.url:
-                            page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="networkidle", timeout=20000)
-                            time.sleep(2)
-
-                        if "relacao-vendas" in page.url or page.locator("p-tab:has-text('Mês da Venda')").first.is_visible():
-                            print("[SCRAPER] [2/4] Tela 'Relação de vendas' alcançada!")
-                            break
-                    except Exception as e_menu:
-                        print(f"[SCRAPER] [2/4] Aviso na tentativa de menu: {e_menu}")
-
-                    time.sleep(2)
+                            except Exception:
+                                pass
+                        time.sleep(2)
 
                 # 3. Aba 'Mês da Venda'
                 print("[SCRAPER] [3/4] Clicando na aba 'Mês da Venda'...")
                 self.fechar_modais_e_avisos(page)
+
                 aba_mes = page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda')").first
-                if not aba_mes.is_visible():
+                try:
+                    aba_mes.wait_for(state="visible", timeout=30000)
+                except Exception:
                     aba_mes = page.get_by_text("Mês da Venda", exact=False).first
-                aba_mes.wait_for(state="visible", timeout=25000)
+                    aba_mes.wait_for(state="visible", timeout=15000)
+
                 aba_mes.click()
                 try:
-                    page.wait_for_load_state("networkidle", timeout=20000)
+                    page.wait_for_load_state("networkidle", timeout=15000)
                 except Exception:
                     pass
                 time.sleep(2)
