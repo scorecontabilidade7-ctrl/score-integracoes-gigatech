@@ -54,10 +54,17 @@ class PhiboScraper:
         # Dispara via JS a limpeza de modais de marketing (formMarketing) e remoção de overlays bloqueadores
         try:
             page.evaluate("""() => {
-                // 1. Remove seções e overlays cinzas bloqueadoras de clique
-                document.querySelectorAll('section, div.absolute, .ui-widget-overlay, .ui-dialog-mask, .p-dialog-mask').forEach(el => {
+                // 1. Remove overlays cinzas bloqueadoras de clique e divs absolutas
+                document.querySelectorAll('.ui-widget-overlay, .ui-dialog-mask, .p-dialog-mask, div.absolute').forEach(el => {
                     try { el.remove(); } catch(e) {}
                 });
+
+                // Se estiver no sistema legado PrimeFaces, remove seções de modal soltas
+                if (window.location.hostname.includes('sistema.phibo')) {
+                    document.querySelectorAll('section').forEach(el => {
+                        try { el.remove(); } catch(e) {}
+                    });
+                }
 
                 // 2. Clica em botões de fechar de modais conhecidos
                 const closeBtns = document.querySelectorAll(
@@ -115,30 +122,46 @@ class PhiboScraper:
         print(f"[SCRAPER] Iniciando automação Playwright para usuário: {email} (Período: {target_month:02d}/{target_year}, Headless: {self.headless})...")
         
         with sync_playwright() as p:
-            # Tenta utilizar o Google Chrome nativo do sistema ou Edge
+            # Argumentos de inicialização do navegador contra detecção e compatíveis com Docker
+            launch_args = [
+                "--start-maximized",
+                "--no-sandbox",
+                "--disable-setuid-sandbox",
+                "--disable-blink-features=AutomationControlled"
+            ]
+
             try:
                 browser = p.chromium.launch(
                     headless=self.headless,
                     channel="chrome",
-                    args=["--start-maximized", "--no-sandbox", "--disable-setuid-sandbox"]
+                    args=launch_args
                 )
             except Exception:
                 try:
                     browser = p.chromium.launch(
                         headless=self.headless,
                         channel="msedge",
-                        args=["--start-maximized", "--no-sandbox", "--disable-setuid-sandbox"]
+                        args=launch_args
                     )
                 except Exception:
                     browser = p.chromium.launch(
                         headless=self.headless,
-                        args=["--start-maximized", "--no-sandbox", "--disable-setuid-sandbox"]
+                        args=launch_args
                     )
 
             context = browser.new_context(
                 viewport={"width": 1920, "height": 1080},
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                locale="pt-BR",
+                timezone_id="America/Sao_Paulo",
                 accept_downloads=True
             )
+            # Mascara flag do webdriver contra bloqueios do WAF/Cloudflare
+            context.add_init_script("""
+                Object.defineProperty(navigator, 'webdriver', {
+                    get: () => undefined
+                });
+            """)
             page = context.new_page()
 
             try:
@@ -209,19 +232,37 @@ class PhiboScraper:
                         except Exception as e_click:
                             print(f"[SCRAPER] [2/4] Aviso clique no menu: {e_click}")
 
-                    # 2. Aguarda a transição natural: sistema.phibo -> iniciojsf?token=... -> /vendas/relacao-vendas
+                    # 2. Aguarda transição para o novo domínio app.phibo.com.br
+                    for _ in range(8):
+                        time.sleep(1)
+                        if "app.phibo.com.br" in page.url or "relacao-vendas" in page.url:
+                            break
+
+                    # 3. Se estiver na tela intermediária com o token JWT (iniciojsf?token=...)
+                    if "iniciojsf" in page.url or "token=" in page.url:
+                        print("[SCRAPER] [2/4] Tela intermediária detectada. Assegurando token no localStorage e navegando...")
+                        try:
+                            page.evaluate("""() => {
+                                const u = new URL(window.location.href);
+                                const token = u.searchParams.get('token');
+                                const refresh = u.searchParams.get('refresh');
+                                if (token) {
+                                    localStorage.setItem('token', JSON.stringify(token));
+                                    localStorage.setItem('origem', JSON.stringify('jsf'));
+                                    if (refresh) localStorage.setItem('refreshToken', JSON.stringify(refresh));
+                                }
+                            }""")
+                            time.sleep(0.5)
+                            page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="networkidle", timeout=30000)
+                        except Exception as e_token:
+                            print(f"[SCRAPER] [2/4] Aviso ao processar token: {e_token}")
+
+                    # 4. Verifica se chegou na tela de vendas
                     try:
-                        page.wait_for_url("**/relacao-vendas**", timeout=30000)
+                        page.wait_for_url("**/relacao-vendas**", timeout=15000)
                         print("[SCRAPER] [2/4] URL 'relacao-vendas' alcançada com sucesso!")
                         break
                     except Exception:
-                        if "iniciojsf" in page.url or "token=" in page.url:
-                            print("[SCRAPER] [2/4] Processamento do token em andamento na tela intermediária, aguardando...")
-                            try:
-                                page.wait_for_url("**/relacao-vendas**", timeout=20000)
-                                break
-                            except Exception:
-                                pass
                         time.sleep(2)
 
                 # 3. Aba 'Mês da Venda'
