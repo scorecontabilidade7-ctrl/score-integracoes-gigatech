@@ -106,7 +106,15 @@ class PhiboScraper:
             except Exception:
                 pass
 
-    def run_download_vendas(self, email: str, senha: str, ano: int = None, mes: int = None) -> str:
+    def run_download_vendas(
+        self,
+        email: str,
+        senha: str,
+        ano: int = None,
+        mes: int = None,
+        data_inicio: str = None,
+        data_fim: str = None
+    ) -> str:
         agora = datetime.now()
         target_year = ano or agora.year
         target_month = mes or agora.month
@@ -119,7 +127,8 @@ class PhiboScraper:
         elif target_month == 12 and target_year == agora.year - 1 and agora.month == 1:
             is_mes_anterior = True
 
-        print(f"[SCRAPER] Iniciando automação Playwright para usuário: {email} (Período: {target_month:02d}/{target_year}, Headless: {self.headless})...")
+        periodo_log = f"{data_inicio} até {data_fim}" if (data_inicio and data_fim) else f"{target_month:02d}/{target_year}"
+        print(f"[SCRAPER] Iniciando automação Playwright para usuário: {email} (Período: {periodo_log}, Headless: {self.headless})...")
         
         with sync_playwright() as p:
             # Argumentos de inicialização do navegador contra detecção e compatíveis com Docker
@@ -283,29 +292,119 @@ class PhiboScraper:
                     pass
                 time.sleep(2)
 
-                if is_mes_anterior:
+                # Função auxiliar para formatar DD/MM/AAAA
+                def format_br_date(d_str: str) -> str:
+                    s = str(d_str).strip()
+                    if "-" in s:
+                        p = s.split("-")
+                        if len(p) == 3:
+                            return f"{p[2].zfill(2)}/{p[1].zfill(2)}/{p[0]}"
+                    return s
+
+                # Caso 1: Período customizado com data_inicio e data_fim
+                if data_inicio and data_fim:
+                    dt_ini_str = format_br_date(data_inicio)
+                    dt_fim_str = format_br_date(data_fim)
+                    print(f"[SCRAPER] [3/4] Selecionando 'Outro período' ({dt_ini_str} até {dt_fim_str})...")
+
+                    dropdown = page.locator("p-select[placeholder='Período'], .p-select, .p-dropdown").first
+                    dropdown.click()
+                    time.sleep(1)
+                    page.locator(".p-select-option, li[role='option'], .p-dropdown-item").filter(has_text="Outro período").first.click()
+                    time.sleep(1.5)
+
+                    inp_ini = page.locator("input[placeholder='Data início']").first
+                    inp_fim = page.locator("input[placeholder='Data fim']").first
+
+                    inp_ini.click()
+                    inp_ini.fill("")
+                    inp_ini.press_sequentially(dt_ini_str, delay=30)
+                    inp_ini.press("Tab")
+                    time.sleep(0.5)
+
+                    inp_fim.click()
+                    inp_fim.fill("")
+                    inp_fim.press_sequentially(dt_fim_str, delay=30)
+                    inp_fim.press("Tab")
+                    time.sleep(0.5)
+
+                    print(f"[SCRAPER] [3/4] Datas preenchidas: {inp_ini.input_value()} até {inp_fim.input_value()}. Clicando em Pesquisar...")
+                    btn_pesquisar = page.locator("button:has-text('Pesquisar')").first
+                    btn_pesquisar.click()
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=15000)
+                    except Exception:
+                        pass
+                    time.sleep(2)
+                    print("[SCRAPER] [3/4] Filtro de período aplicado com sucesso!")
+
+                # Caso 2: Mês anterior
+                elif is_mes_anterior:
                     print(f"[SCRAPER] [3/4] Selecionando 'Mês anterior' ({target_month:02d}/{target_year})...")
-                    dropdown = page.locator("p-select, .p-select, .p-dropdown").first
+                    dropdown = page.locator("p-select[placeholder='Período'], .p-select, .p-dropdown").first
                     dropdown.click()
                     time.sleep(1)
                     opcao_anterior = page.locator(".p-select-option, li[role='option'], .p-dropdown-item").filter(has_text="Mês anterior").first
                     if not opcao_anterior.is_visible():
                         opcao_anterior = page.get_by_text("Mês anterior", exact=False).first
                     opcao_anterior.click()
-                    page.wait_for_load_state("networkidle", timeout=30000)
+                    time.sleep(1)
+
+                    btn_pesquisar = page.locator("button:has-text('Pesquisar')").first
+                    if btn_pesquisar.is_visible():
+                        btn_pesquisar.click()
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=15000)
+                    except Exception:
+                        pass
                     time.sleep(2)
                     print("[SCRAPER] [3/4] Mês anterior selecionado com sucesso!")
+
+                # Caso 3: Mês retroativo específico (Outro mês)
                 elif not is_mes_atual:
-                    print(f"[SCRAPER] [3/4] Período solicitado ({target_month:02d}/{target_year}) é retroativo. Selecionando no dropdown...")
-                    dropdown = page.locator("p-select, .p-select, .p-dropdown").first
+                    print(f"[SCRAPER] [3/4] Período solicitado ({target_month:02d}/{target_year}) é mês retroativo. Selecionando no dropdown...")
+                    dropdown = page.locator("p-select[placeholder='Período'], .p-select, .p-dropdown").first
                     dropdown.click()
                     time.sleep(1)
-                    opcao_outro = page.locator(".p-select-option, li[role='option'], .p-dropdown-item").filter(has_text="Outro mês").first
-                    if opcao_outro.is_visible():
-                        opcao_outro.click()
-                        page.wait_for_load_state("networkidle", timeout=30000)
-                        time.sleep(2)
-                        print("[SCRAPER] [3/4] 'Outro mês' selecionado no dropdown.")
+                    page.locator(".p-select-option, li[role='option'], .p-dropdown-item").filter(has_text="Outro mês").first.click()
+                    time.sleep(1.5)
+
+                    # Seleciona Ano se diferente do atual
+                    if target_year != agora.year:
+                        d_ano = page.locator("p-select[inputid='mesAnoInput'], p-select[placeholder='Ano']").first
+                        if d_ano.is_visible():
+                            d_ano.click()
+                            time.sleep(1)
+                            opt_ano = page.locator(".p-select-option, li[role='option'], .p-dropdown-item").filter(has_text=str(target_year)).first
+                            if opt_ano.is_visible():
+                                opt_ano.click()
+                                time.sleep(1)
+
+                    # Seleciona Mês
+                    meses_nomes = [
+                        "", "Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho",
+                        "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"
+                    ]
+                    nome_mes = meses_nomes[target_month] if 1 <= target_month <= 12 else str(target_month)
+                    d_mes = page.locator("p-select[placeholder='Mês']").first
+                    if d_mes.is_visible():
+                        d_mes.click()
+                        time.sleep(1)
+                        opt_mes = page.locator(".p-select-option, li[role='option'], .p-dropdown-item").filter(has_text=nome_mes).first
+                        if not opt_mes.is_visible():
+                            opt_mes = page.locator(".p-select-option, li[role='option'], .p-dropdown-item").filter(has_text=f"{target_month:02d}").first
+                        opt_mes.click()
+                        time.sleep(1)
+
+                    btn_pesquisar = page.locator("button:has-text('Pesquisar')").first
+                    if btn_pesquisar.is_visible():
+                        btn_pesquisar.click()
+                    try:
+                        page.wait_for_load_state("networkidle", timeout=15000)
+                    except Exception:
+                        pass
+                    time.sleep(2)
+                    print(f"[SCRAPER] [3/4] 'Outro mês' ({target_month:02d}/{target_year}) selecionado e aplicado com sucesso!")
 
                 # 4. Localização e clique no botão Exportar
                 print("[SCRAPER] [4/4] Localizando botão 'Exportar'...")

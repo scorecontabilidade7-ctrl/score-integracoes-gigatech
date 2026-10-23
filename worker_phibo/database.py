@@ -78,3 +78,23 @@ def clean_vendas_mes(cliente_id: str, ano: int, mes: int):
     except Exception as e:
         print(f"[ERRO] Falha ao limpar vendas do período: {e}")
         raise e
+
+
+def clean_vendas_periodo(cliente_id: str, data_inicio: str, data_final: str):
+    """
+    Remove as vendas do cliente no intervalo exato [data_inicio, data_final] (formato YYYY-MM-DD)
+    para garantir idempotência ao reprocessar um período customizado.
+    """
+    print(f"[BD] Limpando vendas existentes do cliente {cliente_id} no período customizado {data_inicio} a {data_final}...")
+    try:
+        supabase.table("phibo_vendas")\
+            .delete()\
+            .eq("cliente_id", cliente_id)\
+            .gte("data_venda", data_inicio)\
+            .lte("data_venda", data_final)\
+            .execute()
+        print(f"[BD] Limpeza de vendas ({data_inicio} a {data_final}) concluída com sucesso.")
+    except Exception as e:
+        print(f"[ERRO] Falha ao limpar vendas do período customizado: {e}")
+        raise e
+

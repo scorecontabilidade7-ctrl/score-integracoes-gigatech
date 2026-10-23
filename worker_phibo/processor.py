@@ -1,6 +1,6 @@
 import csv
 from datetime import datetime
-from .database import batch_insert, clean_vendas_mes
+from .database import batch_insert, clean_vendas_mes, clean_vendas_periodo
 
 
 def safe_float(val) -> float:
@@ -92,7 +92,14 @@ def read_csv_rows(file_path: str):
     return []
 
 
-def process_vendas_csv(file_path: str, cliente_id: str, ano: int = None, mes: int = None) -> int:
+def process_vendas_csv(
+    file_path: str,
+    cliente_id: str,
+    ano: int = None,
+    mes: int = None,
+    data_inicio: str = None,
+    data_fim: str = None
+) -> int:
     """
     Lê o CSV de Vendas gerado pelo PHIBO (relacaoVendasMes.csv),
     transforma os dados, remove vendas anteriores do período (idempotência),
@@ -160,17 +167,27 @@ def process_vendas_csv(file_path: str, cliente_id: str, ano: int = None, mes: in
     total_descontos = sum(r["desconto"] for r in registros)
     total_subtotal = sum(r["sub_total"] for r in registros)
 
-    # 1. Garantir idempotência: limpar dados dos meses presentes no arquivo
-    alvos_limpeza = [(ano, mes)] if (ano and mes) else list(meses_encontrados)
-    for a, m in alvos_limpeza:
-        clean_vendas_mes(cliente_id, a, m)
+    # 1. Garantir idempotência: limpar dados do período antes de inserir
+    if data_inicio and data_fim:
+        dt_ini_iso = parse_date_br(data_inicio) or data_inicio
+        dt_fim_iso = parse_date_br(data_fim) or data_fim
+        clean_vendas_periodo(cliente_id, dt_ini_iso, dt_fim_iso)
+    else:
+        alvos_limpeza = [(ano, mes)] if (ano and mes) else list(meses_encontrados)
+        for a, m in alvos_limpeza:
+            clean_vendas_mes(cliente_id, a, m)
 
     # 2. Inserir em lote no Supabase
     inseridos_total = batch_insert("phibo_vendas", registros)
 
     # 3. Conciliação e Validação dos Dados
     divergencia_itens = len(registros) - inseridos_total
-    periodo_str = f"{mes:02d}/{ano}" if (mes and ano) else f"{sorted(list(meses_encontrados))}"
+    if data_inicio and data_fim:
+        periodo_str = f"{data_inicio} até {data_fim}"
+    elif mes and ano:
+        periodo_str = f"{mes:02d}/{ano}"
+    else:
+        periodo_str = f"{sorted(list(meses_encontrados))}"
 
     print("=" * 70)
     print(f"[AUDITORIA] CONCILIAÇÃO DE CARGA PHIBO - CLIENTE: {cliente_id}")

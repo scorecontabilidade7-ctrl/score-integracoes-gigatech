@@ -25,6 +25,8 @@ def parse_arguments():
     parser.add_argument("--client-id", type=str, help="UUID do cliente específico a processar")
     parser.add_argument("--month", type=int, help="Mês específico para extração (ex: 10)")
     parser.add_argument("--year", type=int, help="Ano específico para extração (ex: 2026)")
+    parser.add_argument("--data-inicio", "--data-inicial", type=str, dest="data_inicio", help="Data início (DD/MM/AAAA ou AAAA-MM-DD)")
+    parser.add_argument("--data-fim", "--data-final", type=str, dest="data_fim", help="Data fim (DD/MM/AAAA ou AAAA-MM-DD)")
     parser.add_argument("--headed", action="store_true", help="Abre o navegador visível (Playwright)")
     parser.add_argument("--test-offline", action="store_true", help="Executa o teste com o CSV de amostra sem abrir o navegador")
     return parser.parse_args()
@@ -38,10 +40,13 @@ def run_pipeline():
     env_month = os.environ.get("PHIBO_MES")
     env_year = os.environ.get("PHIBO_ANO")
     env_dt_ini = os.environ.get("PHIBO_DATA_INICIAL") or os.environ.get("KESTRA_DATA_INICIAL")
+    env_dt_fim = os.environ.get("PHIBO_DATA_FINAL") or os.environ.get("KESTRA_DATA_FINAL")
 
-    if env_dt_ini and (not env_month or not str(env_month).strip()):
-        # Suporte a formatos dd/mm/yyyy ou yyyy-mm-dd disparados pelo dashboard
-        clean_dt = str(env_dt_ini).strip()
+    data_inicio = args.data_inicio or (env_dt_ini.strip() if env_dt_ini and env_dt_ini.strip() else None)
+    data_fim = args.data_fim or (env_dt_fim.strip() if env_dt_fim and env_dt_fim.strip() else None)
+
+    if data_inicio and (not env_month or not str(env_month).strip()):
+        clean_dt = str(data_inicio).strip()
         if "/" in clean_dt:
             partes = clean_dt.split("/")
             if len(partes) == 3:
@@ -63,9 +68,11 @@ def run_pipeline():
     ano = args.year or (int(env_year) if env_year and str(env_year).isdigit() else agora.year)
     mes = args.month or (int(env_month) if env_month and str(env_month).isdigit() else agora.month)
 
+    periodo_display = f"{data_inicio} até {data_fim}" if (data_inicio and data_fim) else f"{mes:02d}/{ano}"
+
     print("=" * 60)
     print("[INICIO] INICIANDO WORKER PHIBO")
-    print(f"[DATA] Periodo Alvo: {mes:02d}/{ano}")
+    print(f"[DATA] Periodo Alvo: {periodo_display}")
     print(f"[MODO] {'TESTE OFFLINE' if args.test_offline else 'ONLINE (PLAYWRIGHT)'}")
     print("=" * 60)
 
@@ -92,7 +99,7 @@ def run_pipeline():
             sys.exit(1)
 
         print(f"[TESTE] Processando arquivo de amostra offline: {sample_file}")
-        total = process_vendas_csv(str(sample_file), cliente_id, ano=ano, mes=mes)
+        total = process_vendas_csv(str(sample_file), cliente_id, ano=ano, mes=mes, data_inicio=data_inicio, data_fim=data_fim)
         print("=" * 60)
         print(f"[SUCESSO] TESTE OFFLINE FINALIZADO! ({total} registros gravados)")
         print("=" * 60)
@@ -127,10 +134,14 @@ def run_pipeline():
 
         try:
             # Download via Playwright
-            csv_path = scraper.run_download_vendas(email, senha, ano=ano, mes=mes)
+            csv_path = scraper.run_download_vendas(
+                email, senha, ano=ano, mes=mes, data_inicio=data_inicio, data_fim=data_fim
+            )
 
             # Processamento e Gravação no Supabase
-            total = process_vendas_csv(csv_path, cid, ano=ano, mes=mes)
+            total = process_vendas_csv(
+                csv_path, cid, ano=ano, mes=mes, data_inicio=data_inicio, data_fim=data_fim
+            )
             print(f"[SUCESSO] Loja {nome} processada: {total} vendas gravadas.")
             lojas_sucesso.append({"loja": nome, "total_vendas": total})
 
