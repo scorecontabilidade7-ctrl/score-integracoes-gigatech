@@ -54,14 +54,14 @@ class PhiboScraper:
         # Dispara via JS a limpeza de modais de marketing (formMarketing) e remoção de overlays bloqueadores
         try:
             page.evaluate("""() => {
-                // 1. Remove overlays cinzas bloqueadoras de clique e divs absolutas
-                document.querySelectorAll('.ui-widget-overlay, .ui-dialog-mask, .p-dialog-mask, div.absolute').forEach(el => {
+                // 1. Remove overlays cinzas bloqueadoras de clique
+                document.querySelectorAll('.ui-widget-overlay, .ui-dialog-mask, .p-dialog-mask').forEach(el => {
                     try { el.remove(); } catch(e) {}
                 });
 
-                // Se estiver no sistema legado PrimeFaces, remove seções de modal soltas
+                // Se estiver no sistema legado PrimeFaces, remove seções de modal soltas e divs absolutas de anúncio
                 if (window.location.hostname.includes('sistema.phibo')) {
-                    document.querySelectorAll('section').forEach(el => {
+                    document.querySelectorAll('section, div.absolute').forEach(el => {
                         try { el.remove(); } catch(e) {}
                     });
                 }
@@ -242,34 +242,40 @@ class PhiboScraper:
                             print(f"[SCRAPER] [2/4] Aviso clique no menu: {e_click}")
 
                     # 2. Aguarda transição para o novo domínio app.phibo.com.br
-                    for _ in range(8):
+                    for _ in range(15):
                         time.sleep(1)
                         if "app.phibo.com.br" in page.url or "relacao-vendas" in page.url:
                             break
 
                     # 3. Se estiver na tela intermediária com o token JWT (iniciojsf?token=...)
                     if "iniciojsf" in page.url or "token=" in page.url:
-                        print("[SCRAPER] [2/4] Tela intermediária detectada. Assegurando token no localStorage e navegando...")
+                        print("[SCRAPER] [2/4] Tela intermediária 'iniciojsf' detectada. Aguardando redirecionamento nativo...")
                         try:
-                            page.evaluate("""() => {
-                                const u = new URL(window.location.href);
-                                const token = u.searchParams.get('token');
-                                const refresh = u.searchParams.get('refresh');
-                                if (token) {
-                                    localStorage.setItem('token', JSON.stringify(token));
-                                    localStorage.setItem('origem', JSON.stringify('jsf'));
-                                    if (refresh) localStorage.setItem('refreshToken', JSON.stringify(refresh));
-                                }
-                            }""")
-                            time.sleep(0.5)
-                            page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="networkidle", timeout=30000)
-                        except Exception as e_token:
-                            print(f"[SCRAPER] [2/4] Aviso ao processar token: {e_token}")
+                            page.wait_for_url("**/relacao-vendas**", timeout=20000)
+                            print("[SCRAPER] [2/4] URL 'relacao-vendas' alcançada via redirecionamento nativo!")
+                        except Exception:
+                            # Fallback caso não redirecione sozinho após 20s
+                            try:
+                                page.evaluate("""() => {
+                                    const u = new URL(window.location.href);
+                                    const token = u.searchParams.get('token');
+                                    const refresh = u.searchParams.get('refresh');
+                                    if (token) {
+                                        localStorage.setItem('token', JSON.stringify(token));
+                                        localStorage.setItem('origem', JSON.stringify('jsf'));
+                                        if (refresh) localStorage.setItem('refreshToken', JSON.stringify(refresh));
+                                    }
+                                }""")
+                                time.sleep(0.5)
+                                page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="domcontentloaded", timeout=30000)
+                            except Exception as e_token:
+                                print(f"[SCRAPER] [2/4] Aviso ao processar token: {e_token}")
 
                     # 4. Verifica se chegou na tela de vendas
                     try:
                         page.wait_for_url("**/relacao-vendas**", timeout=15000)
                         print("[SCRAPER] [2/4] URL 'relacao-vendas' alcançada com sucesso!")
+                        time.sleep(2)
                         break
                     except Exception:
                         time.sleep(2)
@@ -278,12 +284,12 @@ class PhiboScraper:
                 print("[SCRAPER] [3/4] Clicando na aba 'Mês da Venda'...")
                 self.fechar_modais_e_avisos(page)
 
-                aba_mes = page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda')").first
+                aba_mes = page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda'), span:has-text('Mês da Venda')").first
                 try:
                     aba_mes.wait_for(state="visible", timeout=30000)
                 except Exception:
                     aba_mes = page.get_by_text("Mês da Venda", exact=False).first
-                    aba_mes.wait_for(state="visible", timeout=15000)
+                    aba_mes.wait_for(state="visible", timeout=20000)
 
                 aba_mes.click()
                 try:
