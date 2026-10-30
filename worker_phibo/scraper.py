@@ -225,20 +225,13 @@ class PhiboScraper:
                         if sub_relacao.is_visible(timeout=2000):
                             sub_relacao.click(force=True)
 
-                    print("[SCRAPER] [2/4] Clique no item 'Relação de vendas' efetuado! Aguardando transição...")
-                    page.wait_for_url("**/relacao-vendas**", timeout=60000)
-                    print(f"[SCRAPER] [2/4] URL 'relacao-vendas' alcançada com sucesso! ({page.url})")
-                    time.sleep(2)
+                    print("[SCRAPER] [2/4] Clique no item 'Relação de vendas' efetuado! Aguardando interface...")
 
                 # 3. Aba 'Mês da Venda'
-                print("[SCRAPER] [3/4] Clicando na aba 'Mês da Venda'...")
-
+                print("[SCRAPER] [3/4] Aguardando aba 'Mês da Venda'...")
                 aba_mes = page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda'), span:has-text('Mês da Venda')").first
-                try:
-                    aba_mes.wait_for(state="visible", timeout=30000)
-                except Exception:
-                    aba_mes = page.get_by_text("Mês da Venda", exact=False).first
-                    aba_mes.wait_for(state="visible", timeout=20000)
+                aba_mes.wait_for(state="visible", timeout=90000)
+                print(f"[SCRAPER] [3/4] Aba 'Mês da Venda' carregada com sucesso! URL atual: {page.url}")
 
                 aba_mes.click()
                 try:
