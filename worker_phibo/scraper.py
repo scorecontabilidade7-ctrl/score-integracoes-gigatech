@@ -45,6 +45,8 @@ class PhiboScraper:
 
     def fechar_modais_e_avisos(self, page: Page):
         """Fecha modais promocionais, avisos e pop-ups pós-login no PrimeFaces e PrimeNG."""
+        if "sistema.phibo.com.br" not in page.url:
+            return
         try:
             page.keyboard.press("Escape")
             time.sleep(0.2)
@@ -198,91 +200,38 @@ class PhiboScraper:
 
                 # 2. Navegação até Relação de vendas
                 print("[SCRAPER] [2/4] Acessando tela 'Relação de vendas'...")
+                if "relacao-vendas" not in page.url:
+                    menu_vendas = page.locator("li[role='menuitem']:has-text('Vendas'), a.ui-submenu-link:has-text('Vendas'), a:has-text('Vendas')").filter(has_text="Vendas").first
+                    if menu_vendas.is_visible(timeout=5000):
+                        menu_vendas.hover()
+                        time.sleep(0.5)
 
-                for tentativa in range(3):
-                    self.fechar_modais_e_avisos(page)
+                    clicked_js = page.evaluate("""() => {
+                        const span = Array.from(document.querySelectorAll('span.ui-menuitem-text')).find(
+                            s => s.textContent && s.textContent.includes('Relação de vendas')
+                        );
+                        if (span) {
+                            const a = span.closest('a');
+                            if (a) {
+                                a.click();
+                                return true;
+                            }
+                        }
+                        return false;
+                    }""")
 
-                    if "relacao-vendas" in page.url and page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda')").first.is_visible():
-                        print("[SCRAPER] [2/4] Tela 'Relação de vendas' detectada com sucesso!")
-                        break
+                    if not clicked_js:
+                        sub_relacao = page.locator("span.ui-menuitem-text:has-text('Relação de vendas')").first
+                        if sub_relacao.is_visible(timeout=2000):
+                            sub_relacao.click(force=True)
 
-                    print(f"[SCRAPER] [2/4] Tentativa {tentativa + 1}/3 de abrir menu 'Vendas' -> 'Relação de vendas'...")
-
-                    # 1. Se estiver no sistema legado sistema.phibo.com.br:
-                    if "sistema.phibo.com.br" in page.url:
-                        try:
-                            # Hover no menu Vendas
-                            menu_vendas = page.locator("li[role='menuitem']:has-text('Vendas'), a.ui-submenu-link:has-text('Vendas'), a:has-text('Vendas')").filter(has_text="Vendas").first
-                            if menu_vendas.is_visible(timeout=3000):
-                                menu_vendas.hover()
-                                time.sleep(0.5)
-
-                            # Dispara o clique no item de submenu via JS (evita fechamento acidental de dropdown)
-                            clicked_js = page.evaluate("""() => {
-                                const span = Array.from(document.querySelectorAll('span.ui-menuitem-text')).find(
-                                    s => s.textContent && s.textContent.includes('Relação de vendas')
-                                );
-                                if (span) {
-                                    const a = span.closest('a');
-                                    if (a) {
-                                        a.click();
-                                        return true;
-                                    }
-                                }
-                                return false;
-                            }""")
-
-                            if not clicked_js:
-                                sub_relacao = page.locator("span.ui-menuitem-text:has-text('Relação de vendas')").first
-                                if sub_relacao.is_visible(timeout=2000):
-                                    sub_relacao.click(force=True)
-
-                            print("[SCRAPER] [2/4] Clique no item 'Relação de vendas' efetuado! Aguardando transição...")
-                        except Exception as e_click:
-                            print(f"[SCRAPER] [2/4] Aviso clique no menu: {e_click}")
-
-                    # 2. Aguarda transição para o novo domínio app.phibo.com.br
-                    for _ in range(15):
-                        time.sleep(1)
-                        if "app.phibo.com.br" in page.url or "relacao-vendas" in page.url:
-                            break
-
-                    # 3. Se estiver na tela intermediária com o token JWT (iniciojsf?token=...)
-                    if "iniciojsf" in page.url or "token=" in page.url:
-                        print("[SCRAPER] [2/4] Tela intermediária 'iniciojsf' detectada. Aguardando redirecionamento nativo...")
-                        try:
-                            page.wait_for_url("**/relacao-vendas**", timeout=20000)
-                            print("[SCRAPER] [2/4] URL 'relacao-vendas' alcançada via redirecionamento nativo!")
-                        except Exception:
-                            # Fallback caso não redirecione sozinho após 20s
-                            try:
-                                page.evaluate("""() => {
-                                    const u = new URL(window.location.href);
-                                    const token = u.searchParams.get('token');
-                                    const refresh = u.searchParams.get('refresh');
-                                    if (token) {
-                                        localStorage.setItem('token', JSON.stringify(token));
-                                        localStorage.setItem('origem', JSON.stringify('jsf'));
-                                        if (refresh) localStorage.setItem('refreshToken', JSON.stringify(refresh));
-                                    }
-                                }""")
-                                time.sleep(0.5)
-                                page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="domcontentloaded", timeout=30000)
-                            except Exception as e_token:
-                                print(f"[SCRAPER] [2/4] Aviso ao processar token: {e_token}")
-
-                    # 4. Verifica se chegou na tela de vendas
-                    try:
-                        page.wait_for_url("**/relacao-vendas**", timeout=15000)
-                        print("[SCRAPER] [2/4] URL 'relacao-vendas' alcançada com sucesso!")
-                        time.sleep(2)
-                        break
-                    except Exception:
-                        time.sleep(2)
+                    print("[SCRAPER] [2/4] Clique no item 'Relação de vendas' efetuado! Aguardando transição...")
+                    page.wait_for_url("**/relacao-vendas**", timeout=60000)
+                    print(f"[SCRAPER] [2/4] URL 'relacao-vendas' alcançada com sucesso! ({page.url})")
+                    time.sleep(2)
 
                 # 3. Aba 'Mês da Venda'
                 print("[SCRAPER] [3/4] Clicando na aba 'Mês da Venda'...")
-                self.fechar_modais_e_avisos(page)
 
                 aba_mes = page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda'), span:has-text('Mês da Venda')").first
                 try:
