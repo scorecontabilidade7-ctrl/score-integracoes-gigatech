@@ -1,5 +1,6 @@
 import os
 import time
+import platform
 from pathlib import Path
 from datetime import datetime
 from playwright.sync_api import sync_playwright, Page, TimeoutError as PlaywrightTimeoutError
@@ -160,20 +161,34 @@ class PhiboScraper:
                         args=launch_args
                     )
 
+            is_linux = platform.system().lower() == "linux"
+            ua = (
+                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+                if is_linux
+                else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+            )
             context = browser.new_context(
                 viewport={"width": 1920, "height": 1080},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+                user_agent=ua,
                 locale="pt-BR",
                 timezone_id="America/Sao_Paulo",
                 accept_downloads=True
             )
             # Mascara flag do webdriver contra bloqueios do WAF/Cloudflare
             context.add_init_script("""
-                Object.defineProperty(navigator, 'webdriver', {
-                    get: () => undefined
-                });
+                try {
+                    delete Object.getPrototypeOf(navigator).webdriver;
+                } catch(e) {}
             """)
             page = context.new_page()
+
+            # Captura erros de console do navegador para diagnóstico
+            def on_console(msg):
+                if msg.type == "error":
+                    txt = msg.text
+                    if "favicon" not in txt.lower():
+                        print(f"[BROWSER ERROR] {txt[:200]}")
+            page.on("console", on_console)
 
             try:
                 # 1. Login
@@ -227,10 +242,40 @@ class PhiboScraper:
 
                     print("[SCRAPER] [2/4] Clique no item 'Relação de vendas' efetuado! Aguardando interface...")
 
-                # 3. Aba 'Mês da Venda'
+                # 3. Transição segura de 'iniciojsf' para 'relacao-vendas'
+                print("[SCRAPER] [3/4] Aguardando transição para tela de Relação de vendas...")
+                for sec in range(25):
+                    if "relacao-vendas" in page.url:
+                        break
+                    if "iniciojsf" in page.url and ("token=" in page.url or "rota=" in page.url):
+                        if sec >= 5:
+                            print(f"[SCRAPER] [3/4] Tela intermediária 'iniciojsf' detectada ({sec}s). Aplicando credenciais e navegando diretamente...")
+                            try:
+                                page.evaluate("""() => {
+                                    const u = new URL(window.location.href);
+                                    const token = u.searchParams.get('token');
+                                    const refresh = u.searchParams.get('refresh');
+                                    if (token) {
+                                        localStorage.setItem('token', token);
+                                        localStorage.setItem('origem', 'jsf');
+                                        sessionStorage.setItem('token', token);
+                                        sessionStorage.setItem('origem', 'jsf');
+                                        if (refresh) {
+                                            localStorage.setItem('refreshToken', refresh);
+                                            sessionStorage.setItem('refreshToken', refresh);
+                                        }
+                                    }
+                                }""")
+                                time.sleep(0.5)
+                                page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="domcontentloaded", timeout=30000)
+                                break
+                            except Exception as e_tok:
+                                print(f"[SCRAPER] [3/4] Aviso na transição direta: {e_tok}")
+                    time.sleep(1)
+
                 print("[SCRAPER] [3/4] Aguardando aba 'Mês da Venda'...")
                 aba_mes = page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda'), span:has-text('Mês da Venda')").first
-                aba_mes.wait_for(state="visible", timeout=90000)
+                aba_mes.wait_for(state="visible", timeout=60000)
                 print(f"[SCRAPER] [3/4] Aba 'Mês da Venda' carregada com sucesso! URL atual: {page.url}")
 
                 aba_mes.click()
