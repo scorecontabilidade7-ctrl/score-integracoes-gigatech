@@ -139,7 +139,11 @@ class PhiboScraper:
                 "--start-maximized",
                 "--no-sandbox",
                 "--disable-setuid-sandbox",
-                "--disable-blink-features=AutomationControlled"
+                "--disable-blink-features=AutomationControlled",
+                "--disable-web-security",
+                "--disable-features=IsolateOrigins,site-per-process",
+                "--allow-running-insecure-content",
+                "--ignore-certificate-errors"
             ]
 
             try:
@@ -174,10 +178,28 @@ class PhiboScraper:
                 timezone_id="America/Sao_Paulo",
                 accept_downloads=True
             )
-            # Mascara flag do webdriver contra bloqueios do WAF/Cloudflare
+            # Mascara flag do webdriver contra bloqueios do WAF/Cloudflare e emula Chrome desktop
             context.add_init_script("""
                 try {
                     delete Object.getPrototypeOf(navigator).webdriver;
+                } catch(e) {}
+                try {
+                    if (!window.chrome) {
+                        window.chrome = {
+                            runtime: {},
+                            loadTimes: function() {},
+                            csi: function() {},
+                            app: {}
+                        };
+                    }
+                } catch(e) {}
+                try {
+                    Object.defineProperty(navigator, 'languages', {
+                        get: () => ['pt-BR', 'pt', 'en-US', 'en']
+                    });
+                    Object.defineProperty(navigator, 'plugins', {
+                        get: () => [1, 2, 3, 4, 5]
+                    });
                 } catch(e) {}
             """)
             page = context.new_page()
