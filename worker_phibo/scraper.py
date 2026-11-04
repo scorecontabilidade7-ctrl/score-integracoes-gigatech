@@ -165,12 +165,7 @@ class PhiboScraper:
                         args=launch_args
                     )
 
-            is_linux = platform.system().lower() == "linux"
-            ua = (
-                "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-                if is_linux
-                else "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-            )
+            ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
             context = browser.new_context(
                 viewport={"width": 1920, "height": 1080},
                 user_agent=ua,
@@ -225,6 +220,39 @@ class PhiboScraper:
                 } catch(e) {}
             """)
             page = context.new_page()
+
+            # Intercepta chamada a refreshToken para responder com o token já existente (evita 403 de borda do WAF)
+            def handle_refresh(route):
+                request = route.request
+                print(f"[SCRAPER] [INTERCEPTOR] Interceptando chamada a refreshToken: {request.url}")
+                current_url = page.url
+                token = ""
+                refresh = ""
+                if "token=" in current_url:
+                    try:
+                        import urllib.parse
+                        parsed = urllib.parse.parse_qs(urllib.parse.urlparse(current_url).query)
+                        token = parsed.get("token", [""])[0]
+                        refresh = parsed.get("refresh", [""])[0]
+                    except Exception:
+                        pass
+                import json
+                body_json = json.dumps({
+                    "token": token,
+                    "refreshToken": refresh or token,
+                    "type": "Bearer"
+                })
+                route.fulfill(
+                    status=200,
+                    content_type="application/json",
+                    headers={
+                        "Access-Control-Allow-Origin": "*",
+                        "Access-Control-Allow-Headers": "*",
+                        "Access-Control-Allow-Methods": "GET, POST, OPTIONS"
+                    },
+                    body=body_json
+                )
+            page.route("**/auth/refreshToken/**", handle_refresh)
 
             # Captura erros de console do navegador para diagnóstico
             def on_console(msg):

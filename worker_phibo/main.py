@@ -74,6 +74,12 @@ def run_pipeline():
     print("[INICIO] INICIANDO WORKER PHIBO")
     print(f"[DATA] Periodo Alvo: {periodo_display}")
     print(f"[MODO] {'TESTE OFFLINE' if args.test_offline else 'ONLINE (PLAYWRIGHT)'}")
+    try:
+        import urllib.request
+        public_ip = urllib.request.urlopen("https://api.ipify.org", timeout=5).read().decode("utf8")
+        print(f"[REDE] IP Publico do Ambiente: {public_ip}")
+    except Exception as e_ip:
+        print(f"[REDE] Nao foi possivel obter o IP publico: {e_ip}")
     print("=" * 60)
 
     # 1. Obter clientes
