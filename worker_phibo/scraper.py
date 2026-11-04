@@ -178,7 +178,7 @@ class PhiboScraper:
                 timezone_id="America/Sao_Paulo",
                 accept_downloads=True
             )
-            # Mascara flag do webdriver contra bloqueios do WAF/Cloudflare e emula Chrome desktop
+            # Mascara flag do webdriver, spoof de hardware e WebGL contra bloqueios do WAF
             context.add_init_script("""
                 try {
                     delete Object.getPrototypeOf(navigator).webdriver;
@@ -200,6 +200,28 @@ class PhiboScraper:
                     Object.defineProperty(navigator, 'plugins', {
                         get: () => [1, 2, 3, 4, 5]
                     });
+                    Object.defineProperty(navigator, 'hardwareConcurrency', {
+                        get: () => 8
+                    });
+                    Object.defineProperty(navigator, 'deviceMemory', {
+                        get: () => 8
+                    });
+                } catch(e) {}
+                try {
+                    const getParam = WebGLRenderingContext.prototype.getParameter;
+                    WebGLRenderingContext.prototype.getParameter = function(param) {
+                        if (param === 37445) return 'Google Inc. (Intel)';
+                        if (param === 37446) return 'ANGLE (Intel, Intel(R) UHD Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)';
+                        return getParam.apply(this, arguments);
+                    };
+                    if (window.WebGL2RenderingContext) {
+                        const getParam2 = WebGL2RenderingContext.prototype.getParameter;
+                        WebGL2RenderingContext.prototype.getParameter = function(param) {
+                            if (param === 37445) return 'Google Inc. (Intel)';
+                            if (param === 37446) return 'ANGLE (Intel, Intel(R) UHD Graphics Direct3D11 vs_5_0 ps_5_0, D3D11)';
+                            return getParam2.apply(this, arguments);
+                        };
+                    }
                 } catch(e) {}
             """)
             page = context.new_page()
@@ -211,6 +233,16 @@ class PhiboScraper:
                     if "favicon" not in txt.lower():
                         print(f"[BROWSER ERROR] {txt[:200]}")
             page.on("console", on_console)
+
+            # Captura respostas HTTP de erro para diagnóstico exato do servidor
+            def on_response(response):
+                if response.status >= 400:
+                    try:
+                        text = response.text()[:250].strip().replace('\n', ' ')
+                    except Exception:
+                        text = ""
+                    print(f"[HTTP {response.status}] {response.request.method} {response.url} -> {text}")
+            page.on("response", on_response)
 
             try:
                 # 1. Login
@@ -452,6 +484,16 @@ class PhiboScraper:
                     page.screenshot(path=screenshot_path)
                     print(f"[SCRAPER] Screenshot de erro salvo em: {screenshot_path}")
                     print(f"[SCRAPER] URL no momento da falha: {page.url}")
+                    # Extrai textos de possíveis modais de erro na tela
+                    modais = page.locator(".p-dialog, [role='dialog'], p-confirmdialog, .p-toast, .swal2-modal, [class*='dialog'], [class*='modal']").all()
+                    for m in modais:
+                        try:
+                            if m.is_visible():
+                                txt = m.inner_text().strip().replace('\n', ' ')
+                                if txt:
+                                    print(f"[SCRAPER] [MODAL NA TELA] {txt}")
+                        except Exception:
+                            pass
                 except Exception:
                     pass
                 raise e
