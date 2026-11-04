@@ -14,9 +14,10 @@ class PhiboWindowRestrictionError(Exception):
 
 
 class PhiboScraper:
-    def __init__(self, headless: bool = True, download_dir: str = None):
+    def __init__(self, headless: bool = True, download_dir: str = None, proxy: dict = None):
         self.headless = headless
         self.download_dir = download_dir or str(Path(__file__).resolve().parent / "tmp_downloads")
+        self.proxy = proxy
         os.makedirs(self.download_dir, exist_ok=True)
 
     def check_modal_bloqueio(self, page: Page):
@@ -133,6 +134,20 @@ class PhiboScraper:
         periodo_log = f"{data_inicio} até {data_fim}" if (data_inicio and data_fim) else f"{target_month:02d}/{target_year}"
         print(f"[SCRAPER] Iniciando automação Playwright para usuário: {email} (Período: {periodo_log}, Headless: {self.headless})...")
         
+        # Configuração de proxy (via construtor ou variáveis de ambiente)
+        proxy_server = (self.proxy and self.proxy.get("server")) or os.environ.get("PHIBO_PROXY_SERVER") or os.environ.get("PROXY_SERVER")
+        proxy_user = (self.proxy and self.proxy.get("username")) or os.environ.get("PHIBO_PROXY_USERNAME") or os.environ.get("PROXY_USERNAME")
+        proxy_pass = (self.proxy and self.proxy.get("password")) or os.environ.get("PHIBO_PROXY_PASSWORD") or os.environ.get("PROXY_PASSWORD")
+
+        proxy_dict = None
+        if proxy_server:
+            proxy_dict = {"server": proxy_server}
+            if proxy_user:
+                proxy_dict["username"] = proxy_user
+            if proxy_pass:
+                proxy_dict["password"] = proxy_pass
+            print(f"[SCRAPER] [PROXY] Roteando conexão via proxy: {proxy_server.split('@')[-1]}")
+
         with sync_playwright() as p:
             # Argumentos de inicialização do navegador contra detecção e compatíveis com Docker
             launch_args = [
@@ -146,23 +161,27 @@ class PhiboScraper:
                 "--ignore-certificate-errors"
             ]
 
+            launch_kwargs = {
+                "headless": self.headless,
+                "args": launch_args
+            }
+            if proxy_dict:
+                launch_kwargs["proxy"] = proxy_dict
+
             try:
                 browser = p.chromium.launch(
-                    headless=self.headless,
                     channel="chrome",
-                    args=launch_args
+                    **launch_kwargs
                 )
             except Exception:
                 try:
                     browser = p.chromium.launch(
-                        headless=self.headless,
                         channel="msedge",
-                        args=launch_args
+                        **launch_kwargs
                     )
                 except Exception:
                     browser = p.chromium.launch(
-                        headless=self.headless,
-                        args=launch_args
+                        **launch_kwargs
                     )
 
             ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"

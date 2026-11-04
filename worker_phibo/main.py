@@ -29,6 +29,9 @@ def parse_arguments():
     parser.add_argument("--data-fim", "--data-final", type=str, dest="data_fim", help="Data fim (DD/MM/AAAA ou AAAA-MM-DD)")
     parser.add_argument("--headed", action="store_true", help="Abre o navegador visível (Playwright)")
     parser.add_argument("--test-offline", action="store_true", help="Executa o teste com o CSV de amostra sem abrir o navegador")
+    parser.add_argument("--proxy-server", type=str, help="Servidor proxy (ex: http://ip:porta)")
+    parser.add_argument("--proxy-username", type=str, help="Usuário do proxy")
+    parser.add_argument("--proxy-password", type=str, help="Senha do proxy")
     return parser.parse_args()
 
 
@@ -118,7 +121,16 @@ def run_pipeline():
         return
 
     print(f"[INFO] {len(clientes)} cliente(s) ativo(s) encontrado(s).")
-    scraper = PhiboScraper(headless=not args.headed)
+    env_proxy_server = args.proxy_server or os.environ.get("PHIBO_PROXY_SERVER") or os.environ.get("PROXY_SERVER")
+    env_proxy_user = args.proxy_username or os.environ.get("PHIBO_PROXY_USERNAME") or os.environ.get("PROXY_USERNAME")
+    env_proxy_pass = args.proxy_password or os.environ.get("PHIBO_PROXY_PASSWORD") or os.environ.get("PROXY_PASSWORD")
+
+    global_proxy = None
+    if env_proxy_server:
+        global_proxy = {"server": env_proxy_server, "username": env_proxy_user, "password": env_proxy_pass}
+        print(f"[PROXY] Proxy global configurado: {env_proxy_server.split('@')[-1]}")
+
+    scraper = PhiboScraper(headless=not args.headed, proxy=global_proxy)
 
     lojas_sucesso = []
     lojas_falha = []
