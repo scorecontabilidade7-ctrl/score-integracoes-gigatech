@@ -50,6 +50,9 @@ tasks:
         env:
           SUPABASE_URL: "{{ kv('SUPABASE_URL') }}"
           SUPABASE_KEY: "{{ kv('SUPABASE_KEY') }}"
+          PHIBO_PROXY_SERVER: "{{ kv('PHIBO_PROXY_SERVER', errorOnMissing=false) ?? '' }}"
+          PHIBO_PROXY_USERNAME: "{{ kv('PHIBO_PROXY_USERNAME', errorOnMissing=false) ?? '' }}"
+          PHIBO_PROXY_PASSWORD: "{{ kv('PHIBO_PROXY_PASSWORD', errorOnMissing=false) ?? '' }}"
           PHIBO_DATA_INICIAL: "{{ trigger.body.data_inicial ?? inputs.data_inicial ?? '' }}"
           PHIBO_DATA_FINAL: "{{ trigger.body.data_final ?? inputs.data_final ?? '' }}"
           PHIBO_MES: "{{ trigger.body.mes ?? inputs.mes ?? '' }}"

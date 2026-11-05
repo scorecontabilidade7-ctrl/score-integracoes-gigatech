@@ -298,15 +298,18 @@ class PhiboScraper:
         proxy_server = (self.proxy and self.proxy.get("server")) or os.environ.get("PHIBO_PROXY_SERVER") or os.environ.get("PROXY_SERVER")
         proxy_user = (self.proxy and self.proxy.get("username")) or os.environ.get("PHIBO_PROXY_USERNAME") or os.environ.get("PROXY_USERNAME")
         proxy_pass = (self.proxy and self.proxy.get("password")) or os.environ.get("PHIBO_PROXY_PASSWORD") or os.environ.get("PROXY_PASSWORD")
+        proxy_browser_too = str(os.environ.get("PHIBO_PROXY_BROWSER", "false")).strip().lower() in ("1", "true", "yes")
 
         proxy_dict = None
         if proxy_server:
+            if "://" not in proxy_server:
+                proxy_server = f"http://{proxy_server}"
             proxy_dict = {"server": proxy_server}
             if proxy_user:
                 proxy_dict["username"] = proxy_user
             if proxy_pass:
                 proxy_dict["password"] = proxy_pass
-            print(f"[SCRAPER] [PROXY] Roteando conexão via proxy: {proxy_server.split('@')[-1]}")
+            print(f"[SCRAPER] [PROXY] Proxy configurado para phibo-api: {proxy_server.split('@')[-1]} (Browser proxy: {proxy_browser_too})")
 
         with sync_playwright() as p:
             # Argumentos de inicialização do navegador contra detecção e compatíveis com Docker
@@ -325,7 +328,7 @@ class PhiboScraper:
                 "headless": self.headless,
                 "args": launch_args
             }
-            if proxy_dict:
+            if proxy_dict and proxy_browser_too:
                 launch_kwargs["proxy"] = proxy_dict
 
             try:
@@ -441,6 +444,7 @@ class PhiboScraper:
                         pass
                 import json
                 body_json = json.dumps({
+                    "accessToken": token,
                     "token": token,
                     "refreshToken": refresh or token,
                     "type": "Bearer"
@@ -579,13 +583,13 @@ class PhiboScraper:
                                     const token = u.searchParams.get('token');
                                     const refresh = u.searchParams.get('refresh');
                                     if (token) {
-                                        localStorage.setItem('token', token);
-                                        localStorage.setItem('origem', 'jsf');
-                                        sessionStorage.setItem('token', token);
-                                        sessionStorage.setItem('origem', 'jsf');
+                                        localStorage.setItem('token', JSON.stringify(token));
+                                        localStorage.setItem('origem', JSON.stringify('jsf'));
+                                        sessionStorage.setItem('token', JSON.stringify(token));
+                                        sessionStorage.setItem('origem', JSON.stringify('jsf'));
                                         if (refresh) {
-                                            localStorage.setItem('refreshToken', refresh);
-                                            sessionStorage.setItem('refreshToken', refresh);
+                                            localStorage.setItem('refreshToken', JSON.stringify(refresh));
+                                            sessionStorage.setItem('refreshToken', JSON.stringify(refresh));
                                         }
                                     }
                                 }""")
