@@ -110,6 +110,166 @@ class PhiboScraper:
             except Exception:
                 pass
 
+    def _extract_vendas_via_api(
+        self,
+        access_token: str,
+        is_mes_atual: bool,
+        is_mes_anterior: bool,
+        target_year: int,
+        target_month: int,
+        data_inicio: str = None,
+        data_fim: str = None,
+        proxy_dict: dict = None
+    ) -> str | None:
+        """
+        Extrai o relatório de vendas diretamente via phibo-api.com.br usando o Bearer token
+        e os cabeçalhos Client Hints homologados (contornando bloqueios de HeadlessChrome no WAF
+        e eventual restrição de janela no botão de exportação).
+        """
+        import urllib.parse
+        import json
+        from datetime import timezone, timedelta
+        import requests
+
+        def to_iso(d_str: str) -> str:
+            s = str(d_str).strip()
+            if "/" in s:
+                p = s.split("/")
+                if len(p) == 3:
+                    return f"{p[2].zfill(4)}-{p[1].zfill(2)}-{p[0].zfill(2)}"
+            return s
+
+        if data_inicio and data_fim:
+            params = {
+                "opcaoFiltro": "outroPeriodo",
+                "dataInicialFiltro": to_iso(data_inicio),
+                "dataFinalFiltro": to_iso(data_fim),
+            }
+        elif is_mes_atual:
+            params = {"opcaoFiltro": "mesAtual"}
+        elif is_mes_anterior:
+            params = {"opcaoFiltro": "mesAnterior"}
+        else:
+            params = {
+                "opcaoFiltro": "outroMes",
+                "ano": str(target_year),
+                "mes": str(target_month),
+            }
+
+        headers = {
+            "Accept": "application/json, text/plain, */*",
+            "Accept-Language": "pt-BR,pt;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json; charset=utf-8",
+            "Origin": "https://app.phibo.com.br",
+            "Referer": "https://app.phibo.com.br/",
+            "sec-ch-ua": '"Microsoft Edge";v="155", "Chromium";v="155", "Not(A:Brand";v="24"',
+            "sec-ch-ua-mobile": "?1",
+            "sec-ch-ua-platform": '"Android"',
+            "sec-fetch-dest": "empty",
+            "sec-fetch-mode": "cors",
+            "sec-fetch-site": "cross-site",
+            "showloader": "true",
+            "User-Agent": "Mozilla/5.0 (Linux; Android 16; Pixel 10) AppleWebKit/537.36 (KHTML, like Gecko) Edg/155.0.0.0 Mobile Safari/537.36",
+        }
+
+        proxies = None
+        if proxy_dict and proxy_dict.get("server"):
+            srv = proxy_dict["server"]
+            usr = proxy_dict.get("username")
+            pwd = proxy_dict.get("password")
+            if usr and pwd and "://" in srv and "@" not in srv:
+                scheme, rest = srv.split("://", 1)
+                proxy_url = f"{scheme}://{urllib.parse.quote(usr)}:{urllib.parse.quote(pwd)}@{rest}"
+            else:
+                proxy_url = srv
+            proxies = {"http": proxy_url, "https": proxy_url}
+
+        destino = os.path.join(self.download_dir, "relacaoVendasMes.csv")
+
+        # 1. Tentativa direta no endpoint oficial de exportação CSV
+        try:
+            url_exp = "https://www.phibo-api.com.br/relacaoVendas/periodo/exportar"
+            print(f"[SCRAPER] [API DIRETA] Solicitando CSV em {url_exp} (params={params})...")
+            resp = requests.get(url_exp, params=params, headers=headers, proxies=proxies, timeout=30)
+            if resp.status_code == 200 and "Data da Venda" in resp.text:
+                with open(destino, "w", encoding="utf-8-sig", newline="") as f:
+                    f.write(resp.text.lstrip("\ufeff"))
+                print(f"[SCRAPER] [API DIRETA] CSV exportado com sucesso via API: {destino}")
+                return destino
+            else:
+                print(f"[SCRAPER] [API DIRETA] Endpoint /exportar retornou HTTP {resp.status_code}: {resp.text[:200]}")
+        except Exception as e_exp:
+            print(f"[SCRAPER] [API DIRETA] Aviso ao chamar /exportar: {e_exp}")
+
+        # 2. Fallback 24/7 via endpoint JSON paginado (/relacaoVendas/periodo)
+        try:
+            url_list = "https://www.phibo-api.com.br/relacaoVendas/periodo"
+            print(f"[SCRAPER] [API DIRETA] Buscando vendas via JSON paginado em {url_list}...")
+            all_items = []
+            page_num = 0
+            while True:
+                page_params = {**params, "page": page_num, "size": 200}
+                resp = requests.get(url_list, params=page_params, headers=headers, proxies=proxies, timeout=30)
+                if resp.status_code != 200:
+                    print(f"[SCRAPER] [API DIRETA] Endpoint JSON retornou HTTP {resp.status_code}: {resp.text[:200]}")
+                    return None
+                payload = resp.json()
+                content = payload.get("content") or []
+                all_items.extend(content)
+                if payload.get("last", True) or not content:
+                    break
+                page_num += 1
+
+            def fmt_brl(val: float) -> str:
+                return f"{val:.2f}".replace(".", ",")
+
+            tz_br = timezone(timedelta(hours=-3))
+            linhas = ["Origem;Data da Venda;Hora;Cliente;Vendedor;Qtde;Sub Total;Desconto;Trocas;Cashback;Frete;Total"]
+            for it in all_items:
+                origem = (it.get("origemVenda") or "PDV").strip()
+                dt_iso = (it.get("dataVenda") or "").strip()
+                if "-" in dt_iso and len(dt_iso) >= 10:
+                    p = dt_iso[:10].split("-")
+                    dt_br = f"{p[2]}/{p[1]}/{p[0]}"
+                else:
+                    dt_br = dt_iso
+
+                hora_br = "00:00"
+                dh_raw = it.get("dataHoraVenda")
+                if dh_raw:
+                    try:
+                        dt_obj = datetime.fromisoformat(str(dh_raw).replace("Z", "+00:00"))
+                        hora_br = dt_obj.astimezone(tz_br).strftime("%H:%M")
+                    except Exception:
+                        pass
+
+                fone = (it.get("clienteFone") or "").strip()
+                nome = (it.get("clienteNome") or "").strip()
+                cliente_str = f"{fone} - {nome}" if (fone and nome) else (nome or fone)
+                vendedor = (it.get("vendedorNome") or "").strip()
+                qtde = int(round(float(it.get("qtdeSomaItem") or 0)))
+                sub_total = float(it.get("vlrSomaItemVendaTotal") or 0.0)
+                desconto = float(it.get("valorDesconto") or 0.0) + float(it.get("valorCupom") or 0.0)
+                trocas = float(it.get("vlrSomaDevolucaoTotal") or 0.0)
+                cashback = float(it.get("valorCashbackPagto") or 0.0)
+                frete = float(it.get("valorFrete") or 0.0)
+                total = round(sub_total - desconto - trocas - cashback + frete, 2)
+
+                linhas.append(
+                    f"{origem};{dt_br};{hora_br};{cliente_str};{vendedor};{qtde};"
+                    f"{fmt_brl(sub_total)};{fmt_brl(desconto)};{fmt_brl(trocas)};"
+                    f"{fmt_brl(cashback)};{fmt_brl(frete)};{fmt_brl(total)}"
+                )
+
+            with open(destino, "w", encoding="utf-8-sig", newline="") as f:
+                f.write("\n".join(linhas) + "\n")
+            print(f"[SCRAPER] [API DIRETA] CSV montado via JSON ({len(all_items)} vendas) com sucesso: {destino}")
+            return destino
+        except Exception as e_json:
+            print(f"[SCRAPER] [API DIRETA] Aviso ao buscar JSON paginado: {e_json}")
+            return None
+
     def run_download_vendas(
         self,
         email: str,
@@ -240,6 +400,30 @@ class PhiboScraper:
             """)
             page = context.new_page()
 
+            # Sobrescreve Client Hints (sec-ch-ua) via CDP nativo para remover "HeadlessChrome"
+            try:
+                cdp = context.new_cdp_session(page)
+                cdp.send("Network.setUserAgentOverride", {
+                    "userAgent": ua,
+                    "acceptLanguage": "pt-BR,pt;q=0.9,en;q=0.8,en-GB;q=0.7,en-US;q=0.6",
+                    "platform": "Win32",
+                    "userAgentMetadata": {
+                        "brands": [
+                            {"brand": "Microsoft Edge", "version": "155"},
+                            {"brand": "Chromium", "version": "155"},
+                            {"brand": "Not(A:Brand", "version": "24"}
+                        ],
+                        "fullVersion": "155.0.0.0",
+                        "platform": "Windows",
+                        "platformVersion": "15.0.0",
+                        "architecture": "x86",
+                        "model": "",
+                        "mobile": False
+                    }
+                })
+            except Exception as e_cdp:
+                print(f"[SCRAPER] [AVISO CDP] {e_cdp}")
+
             # Intercepta chamada a refreshToken para responder com o token já existente (evita 403 de borda do WAF)
             def handle_refresh(route):
                 request = route.request
@@ -343,13 +527,51 @@ class PhiboScraper:
 
                     print("[SCRAPER] [2/4] Clique no item 'Relação de vendas' efetuado! Aguardando interface...")
 
-                # 3. Transição segura de 'iniciojsf' para 'relacao-vendas'
-                print("[SCRAPER] [3/4] Aguardando transição para tela de Relação de vendas...")
-                for sec in range(25):
+                # 3. Captura do Token JWT na transição 'iniciojsf' e Extração Direta via API
+                print("[SCRAPER] [3/4] Aguardando token de sessão pós-redirecionamento...")
+                access_token = None
+                for step_wait in range(30):
+                    curr_url = page.url
+                    if "token=" in curr_url:
+                        try:
+                            import urllib.parse
+                            parsed_qs = urllib.parse.parse_qs(urllib.parse.urlparse(curr_url).query)
+                            access_token = parsed_qs.get("token", [None])[0]
+                            if access_token:
+                                print("[SCRAPER] [3/4] Token JWT capturado da URL com sucesso!")
+                                break
+                        except Exception:
+                            pass
+                    if "app.phibo.com.br" in curr_url:
+                        try:
+                            access_token = page.evaluate("() => localStorage.getItem('token') || sessionStorage.getItem('token')")
+                            if access_token:
+                                print("[SCRAPER] [3/4] Token JWT capturado do Storage com sucesso!")
+                                break
+                        except Exception:
+                            pass
+                    page.wait_for_timeout(500)
+
+                if access_token:
+                    csv_api_path = self._extract_vendas_via_api(
+                        access_token=access_token,
+                        is_mes_atual=is_mes_atual,
+                        is_mes_anterior=is_mes_anterior,
+                        target_year=target_year,
+                        target_month=target_month,
+                        data_inicio=data_inicio,
+                        data_fim=data_fim,
+                        proxy_dict=proxy_dict,
+                    )
+                    if csv_api_path and os.path.exists(csv_api_path):
+                        return csv_api_path
+
+                # Fallback UI tradicional caso a extração direta via API não retorne
+                for sec in range(15):
                     if "relacao-vendas" in page.url:
                         break
                     if "iniciojsf" in page.url and ("token=" in page.url or "rota=" in page.url):
-                        if sec >= 5:
+                        if sec >= 3:
                             print(f"[SCRAPER] [3/4] Tela intermediária 'iniciojsf' detectada ({sec}s). Aplicando credenciais e navegando diretamente...")
                             try:
                                 page.evaluate("""() => {
@@ -367,12 +589,12 @@ class PhiboScraper:
                                         }
                                     }
                                 }""")
-                                time.sleep(0.5)
+                                page.wait_for_timeout(500)
                                 page.goto("https://app.phibo.com.br/vendas/relacao-vendas", wait_until="domcontentloaded", timeout=30000)
                                 break
                             except Exception as e_tok:
                                 print(f"[SCRAPER] [3/4] Aviso na transição direta: {e_tok}")
-                    time.sleep(1)
+                    page.wait_for_timeout(1000)
 
                 print("[SCRAPER] [3/4] Aguardando aba 'Mês da Venda'...")
                 aba_mes = page.locator("p-tab:has-text('Mês da Venda'), [role='tab']:has-text('Mês da Venda'), span:has-text('Mês da Venda')").first
