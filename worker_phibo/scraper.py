@@ -298,7 +298,7 @@ class PhiboScraper:
         proxy_server = (self.proxy and self.proxy.get("server")) or os.environ.get("PHIBO_PROXY_SERVER") or os.environ.get("PROXY_SERVER") or "http://gw.dataimpulse.com:823"
         proxy_user = (self.proxy and self.proxy.get("username")) or os.environ.get("PHIBO_PROXY_USERNAME") or os.environ.get("PROXY_USERNAME") or "de9db9d999591d0fb9c4__cr.br"
         proxy_pass = (self.proxy and self.proxy.get("password")) or os.environ.get("PHIBO_PROXY_PASSWORD") or os.environ.get("PROXY_PASSWORD") or "a2f82db49c7476e3"
-        proxy_browser_too = str(os.environ.get("PHIBO_PROXY_BROWSER", "false")).strip().lower() in ("1", "true", "yes")
+        proxy_browser_too = str(os.environ.get("PHIBO_PROXY_BROWSER", "true")).strip().lower() in ("1", "true", "yes")
 
         proxy_dict = None
         if proxy_server:
